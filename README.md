@@ -21,11 +21,11 @@ This folder contains the python source code for analysing the mutation dynamics 
 
 ## Data
 This folder contains the genome sequence data exported from GISAID EpiFlu / NCBI Genbank database:
-* Each data file is provided in a variety of readable text formats (_.fasta, .aln, .txt_)
+* Each data file is provided in a variety of readable text formats (_.fasta, _.fa, .aln, .txt_)
 * Text header contains relevant metadata on each sample (_sequence ID, collection date, country of origin_)
-* Text body contains a string of characters representing the corresponding RNA nucleotides (_A, G, T, C_) or Amino Acids
+* Text body contains a string of characters representing the corresponding RNA nucleotides or amino acids
 
-> **Sample data file (truncated):**   
+> **Sample data file:**   
 >           
 > ![](figures/amino_acid_sequence.png)
 
