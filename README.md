@@ -33,4 +33,5 @@ This folder contains all the output figures and results generated from our analy
 ## How to Run the Code:
 * Download the python scripts from _src_ folder and place them in a directory. 
 * Download the sequence text files from _data_ folder or GISAID database, placing them in the same directory.
-* Run the relevant python scripts to train the model, then check your directory for the output results and figures.
+* Run the _training.py_ script in the _temporal_ folder to train the model and obtain prediction results.
+* Run the relevant python scripts in the _temporal and _spatial_ folders for output graphs and figures.
