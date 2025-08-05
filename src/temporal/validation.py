@@ -146,7 +146,7 @@ def evaluate(Y_real, Y_pred):
 
 def list_summary(name, data):
     """
-    Prints a summary of the given data, including a name and the count of each unique element.
+    Prints the specified name followed by the count of each unique element in the data.
 
     Args:
         name (str): Display name.
