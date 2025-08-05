@@ -8,7 +8,7 @@ class Trigram:
         Initializes a Trigram object.
 
         Args:
-            amino_acids (list): A list of amino acids.
+            amino_acids (string): A list of amino acids.
             strain_pos (int): The position of the first amino acid.
         """
         self.amino_acids = amino_acids
@@ -18,6 +18,8 @@ class Trigram:
         """
         Returns True if one of the amino acids in this trigram is from the
         given pos in the strain.
+
+        A trigram covers positions [strain_pos, strain_pos + 2]
 
         Args:
             pos (int): The position of the first amino acid.

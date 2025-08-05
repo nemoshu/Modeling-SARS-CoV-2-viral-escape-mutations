@@ -12,7 +12,7 @@ def sample_strains(strains_by_year, num_of_samples):
     Randomly picks num_of_samples strains from each year, sampling is done with replacement.
 
     Args:
-        strains_by_year (list[list[string]]): a 2D list of strings containing the strains in each year
+        strains_by_year (list[list[string]]): a 2D list of strings where each sublist contains strain strings from a specific year
         num_of_samples (int): number of samples to pick from each year
 
     Returns:
@@ -28,7 +28,7 @@ def sample_strains(strains_by_year, num_of_samples):
 
 def sample_strains_cluster(strains_by_year, num_of_samples):
     """
-    Picks num_of_samples strains from each year after clustering, sampling is done with replacement.
+    Picks the first num_of_samples strains from each year, sampling is done with replacement.
 
     Args:
         strains_by_year (list[list[string]]): a 2D list of strings containing the strains in each year
@@ -53,10 +53,10 @@ def split_to_trigrams(strains_by_year, overlapping=True):
     an extra trigram if the strain length is not evenly divisible by three.
 
     Args:
-        strains_by_year (list): a 2D [year, strain] list of strings,
+        strains_by_year (list): a 2D [year] [strain] list of strings,
         overlapping (bool): whether to use overlapping approach
     Returns:
-        trigrams_by_year (list): a 3d [year, strain, trigram] list of Trigram objects.
+        trigrams_by_year (list): a 3d [year] [strain] [trigram] list of Trigram objects.
     """
 
     if overlapping:
@@ -130,8 +130,9 @@ def make_triplet_strains(strains_by_year, positions):
 
 def make_triplet_labels(triplet_strains_by_year):
     """
-    Creates labels indicating whether the center amino acid in each triplet
-    mutates in the last year (1 for yes, 0 for no).
+    Creates labels indicating whether the center amino acid in each triplet.
+    Labels 1 if the center amino acid (position 2 in the 5-amino-acid triplet)
+    differs between the last and penultimate year; 0 otherwise.
 
     Args:
         triplet_strains_by_year (list): a 2d [year, strain] list of strings.
@@ -156,6 +157,8 @@ def get_majority_baselines(triplet_strains_by_year, labels):
     Returns accuracy, precision, recall, f1-score and mcc for the baseline
     approach of simply predicting mutation epitope in the last year differs
     from the majority one.
+
+    Majority is determined from all years except the last.
 
     Args:
         triplet_strains_by_year (list): a 2d [year, strain] list of triplet strings.
@@ -195,15 +198,15 @@ def get_majority_baselines(triplet_strains_by_year, labels):
 
 def extract_positions_by_year(positions, trigrams_by_year):
     """
-    Extracts trigrams that contain an amino acid from one of the given positions.
-    Expects and returns a 3d [year, strain, trigram] list of Trigram objects.
+    Extracts trigrams that contain an amino acid which overlaps one of the given positions.
+    Expects and returns a 3d [year] [strain] [trigram] list of Trigram objects.
 
     Args:
         positions (list): List of positions
-        trigrams_by_year (list): A 3d [year, strain, trigram] list of Trigram objects.
+        trigrams_by_year (list): A 3d [year] [strain] [trigram] list of Trigram objects.
 
     Returns:
-        extracted_by_year (list): Extracted 3d [year, strain, trigram] list of Trigram objects.
+        extracted_by_year (list): Extracted 3d [year] [strain] [trigram] list of Trigram objects.
     """
     strain = trigrams_by_year[0][0]
     strain_idxs_to_extract = []
@@ -301,7 +304,7 @@ def map_trigrams_to_idxs(nested_trigram_list, trigram_to_idx):
 
     Args:
         nested_trigram_list (list): nested list of Trigram objects
-        trigram_to_idx (list): list of Trigram objects mapped to corresponding indexes
+        trigram_to_idx (dict[string, int]): dictionary of Trigram Amino Acids mapped to integer indexes
 
     Returns:
         mapped (list): trigrams indexes
@@ -314,7 +317,7 @@ def map_trigrams_to_idxs(nested_trigram_list, trigram_to_idx):
         Maps a Trigram object to its corresponding index.
 
         Args:
-            trigram (Trigram): Trigram object
+            trigram (string): string of trigram amino acids
 
         Returns:
             index (int): Trigram index, or dummy index of len(trigram_to_idx) if unavailable
@@ -420,7 +423,7 @@ def indexes_to_mutations(trigram_indexes_x, trigram_indexes_y):
 
 def reshape_to_linear(vecs_by_year, window_size=3):
     """
-    Reshapes vectors to linear.
+    Reshapes vectors to linear by concatenating vectors from the last <window_size> years.
 
     Args:
         vecs_by_year (list): list of vectors in each year

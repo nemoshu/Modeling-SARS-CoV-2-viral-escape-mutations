@@ -59,7 +59,7 @@ class RnnModel(nn.Module):
         Parameters:
             batch_size: Number of sequences in the batch
         Returns:
-            For 'LSTM' cells, two all-zero 3D Pytorch tensors with dimensions (1, batch_size, hidden_size)
+            For 'LSTM' cells, two all-zero (h_init, c_init) 3D Pytorch tensors with dimensions (1, batch_size, hidden_size)
             For other types, one all-zero 3D Pytorch tensors with dimensions (1, batch_size, hidden_size)
         """
 
@@ -107,7 +107,7 @@ class AttentionModel(nn.Module):
 
         Returns:
             score_seq (torch.Tensor): output prediction for mutation, shape (batch_size, output_dim)
-            attn_weights (torch.Tensor): attention weights, shape (batch_size, seq_length)
+            attn_weights (torch.Tensor): attention scores over input sequence, shape (batch_size, seq_length)
         """
         input_seq = self.dropout(input_seq)
         encoder_outputs, (h, _) = self.encoder(input_seq, hidden_state)
@@ -157,7 +157,7 @@ class DaRnnModel(nn.Module):
 
     def __init__(self, seq_length, input_dim, output_dim, hidden_size, dropout_p):
         """
-        A Dual-Attention RNN model with attention over both the input at each timestep
+        A Dual-Attention (input attention and temporal attention) RNN model with attention over both the input at each timestep
         and all hidden states of the encoder to make the final prediction.
 
         Args:
@@ -198,7 +198,7 @@ class DaRnnModel(nn.Module):
 
         Returns:
             logits (torch.Tensor): output prediction for mutation, shape (batch_size, output_dim)
-            beta (torch.Tensor): attention weights, shape (batch_size, seq_length)
+            beta (torch.Tensor): temporal attention weights, shape (batch_size, seq_length)
         """
         x = self.dropout(x)
         h_seq = []
@@ -249,8 +249,8 @@ class DaRnnModel(nn.Module):
         Args:
             h (torch.Tensor): hidden states for all time steps, shape (seq_length, batch_size, hidden_size)
         Returns:
-            c (torch.Tensor): weighted sums of hidden states, shape (batch_size, hidden_size)
-            beta (torch.Tensor): attention weights, shape (batch_size, seq_length)
+            c (torch.Tensor): context vector - weighted sums of hidden states, shape (batch_size, hidden_size)
+            beta (torch.Tensor): temporal attention weights, shape (batch_size, seq_length)
         """
         h = h.permute(1, 0, 2)
         l = self.vd(torch.tanh((self.Ud(h))))
@@ -306,6 +306,9 @@ class TransformerModel(nn.Module):
         Args:
             input_seq (torch.Tensor): input sequence, with dimensions (seq_len, batch_size, input_dim)
             hidden_state (torch.Tensor): initial hidden state, typically from output of init_hidden (unused)
+
+        Returns:
+            out, out (torch.Tensor): Transformer output, shape (seq_len, batch_size, output_dim). Second return value is a duplicate as a dummy.
         """
         out = self.dropout(input_seq)
         out = self.transformer_encoder(out)

@@ -34,7 +34,7 @@ def load_data():
 
 def plot_cscs_fitness(df):
     """
-    Plots grouped bar chart comparing two neural model scores across strains.
+    Plots grouped bar chart comparing semantic change and grammaticality scores across strains.
 
     Args:
         df (pd.DataFrame): Data frame obtained from load_data().
@@ -55,7 +55,7 @@ def plot_cscs_fitness(df):
 
 def plot_fitness_benchmark(df):
     """
-    Plots fitness benchmark curves for each strain showing performance of multiple models.
+    Plots fitness benchmark bar charts for each strain showing performance of multiple models.
 
     Args:
         df (pd.DataFrame): Data frame obtained from load_data().
@@ -63,7 +63,7 @@ def plot_fitness_benchmark(df):
     Returns:
         None
 
-    Output File:
+    Output Files:
         figures/fitness_barplot_benchmark_{strain}.svg
     """
     model_order = [ 'mafft', 'EVcouplings (indep)', 'EVcouplings (epist)',

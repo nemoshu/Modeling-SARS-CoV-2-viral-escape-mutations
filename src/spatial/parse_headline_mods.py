@@ -58,7 +58,8 @@ def read_headline_info(f, orig_line):
 
 def find_diff(headline1, headline2):
     """
-    Identifies the first index at which two headlines differ.
+    Compares headlines token by token (split on spaces) and returns the index of the first differing token.
+    Returns None if headlines are identical.
 
     Args:
         headline1 (string): The first tokenized headline
@@ -82,7 +83,7 @@ def pos_tag(sentence, backend='nltk'):
         backend (string): 'nltk' or 'flair'
 
     Returns:
-        parsed(list[tuple[str, str]]): List of tuples of tokens and their POS tags
+        parsed(list[tuple[str, str]]): List of tuples (token, pos_tag) where pos_tag is a part-of-speech label
     """
     global flair_pos
 
@@ -116,11 +117,12 @@ def find_semantic_distance(wordtag1, wordtag2):
         wordtag2 (Tuple[str, str]): The second word and POS pair
     Returns:
         tuple[float, float]: The semantic distance between the two words, in path similarity and Wu-Palmer similarity
-        None if the semantic distance can't be computed
+        None if the semantic distance can't be computed, i.e., words are of differing types
     """
     word1, tag1 = wordtag1
     word2, tag2 = wordtag2
 
+    # compare nouns
     if tag1.startswith('NN') and tag2.startswith('NN'):
         if tag1 == 'NNS':
             word1 = singularize(word1)
@@ -133,6 +135,7 @@ def find_semantic_distance(wordtag1, wordtag2):
             return None
         return syn1.path_similarity(syn2), syn1.wup_similarity(syn2)
 
+    # compare verbs
     if tag1.startswith('VB') and tag2.startswith('VB'):
         try:
             word1 = conjugate(word1, 'inf')
@@ -263,7 +266,7 @@ def part_of_speech(infos, backend='nltk', n_most=10):
 
 def train_topic_model(seqs, vocabulary, n_components=10):
     """
-    Trains a topic model.
+    Converts sequences to a word-count matrix, and trains a topic model.
 
     Args:
         seqs (dict[tuple[string], list[dict]]): dictionary mapping headline to tokenized word list
@@ -274,6 +277,7 @@ def train_topic_model(seqs, vocabulary, n_components=10):
     """
     seqs = np.array([ ' '.join(seq) for seq in sorted(seqs.keys()) ])
 
+    # convert to word-count matrix
     X = dok_matrix((len(seqs), len(vocabulary)))
     for seq_idx, seq in enumerate(seqs):
         for word in seq.split(' '):
@@ -333,7 +337,9 @@ def lda_topic_model(infos, n_components=10):
 
 if __name__ == '__main__':
     """
-    Parses and analyzes headline models, including part-of-speech analysis.
+    Reads a log file specified as a command-line argument, 
+    extracts headline info using read_headline_info, 
+    then runs POS analysis.
     """
     log_fname = sys.argv[1]
 

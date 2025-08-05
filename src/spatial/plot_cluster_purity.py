@@ -82,7 +82,7 @@ if __name__ == '__main__':
     """
     Plots cluster purity graphs.
     
-    Output Files:
+    Output Files (Bar Purity Plots):
         figures/cluster_purity_{virus}_{entry}.svg
     """
     # Loads data from a range of phylo and louvain methods

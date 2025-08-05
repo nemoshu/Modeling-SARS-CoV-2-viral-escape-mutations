@@ -98,6 +98,7 @@ class LanguageModel(object):
     def transform(self, X_cat, lengths, embed_fname=None):
         """
         Generates semantic embeddings for each sequence.
+        Embeddings are extracted from 'embed_layer'.
 
         Args:
             X_cat (np.ndarray): concatenated sequence indices
@@ -161,7 +162,7 @@ class LanguageModel(object):
             X_cat (np.ndarray): concatenated sequence indices
             lengths (list): lengths of each original sequence
         Returns:
-            score (float): total loss on data
+            score (float): negative total loss on data
         """
         X, y_true = self.split_and_pad(
             X_cat, lengths, self.seq_len_, self.vocab_size_, self.verbose_
@@ -270,9 +271,9 @@ class DNNLanguageModel(LanguageModel):
 
         Returns:
             X ([X_pre, X_post]):
-                X_pre: padded pre-sequence
-                x_post: padded post-sequence
-            Y: The true token index at each position
+                X_pre: padded pre-sequence, i.e., sequence before position i
+                x_post: padded post-sequence, i.e., sequence after position i
+            Y: The true token index at each position, i.e., token at position i
         """
         if X_cat.shape[0] != sum(lengths):
             raise ValueError('Length dimension mismatch: {} and {}'
@@ -399,8 +400,8 @@ class LSTMLanguageModel(LanguageModel):
             vocab_size (int): number of distinct tokens
             verbose (int): verbose mode, controls how much process is printed
         Returns:
-            X (np.ndarray): A matrix such that each row is the input to predict the next token
-            Y (np.ndarray): The true token index at the end of each prefix
+            X (np.ndarray): A matrix such that each row is the input to predict the next token, i.e., sequence before position i
+            Y (np.ndarray): The true token index at the end of each prefix, i.e., token at position i
         """
         if X_cat.shape[0] != sum(lengths):
             raise ValueError('Length dimension mismatch: {} and {}'
@@ -524,9 +525,9 @@ class BiLSTMLanguageModel(LanguageModel):
 
         Returns:
            X ([X_pre, X_post]):
-               X_pre: padded pre-sequence
-               x_post: padded post-sequence
-           Y: The true token index at each position
+               X_pre: padded pre-sequence, i.e., sequence before position i
+               x_post: padded post-sequence, i.e., sequence after position i
+           Y: The true token index at each position, i.e., sequence at position i
         """
 
         if X_cat.shape[0] != sum(lengths):
@@ -660,8 +661,8 @@ class AttentionLanguageModel(LanguageModel):
            verbose (int): verbose mode, controls how much process is printed
 
         Returns:
-            X: The sequence with the target token removed at each position, and padded with zeros to length seq_len-1
-            Y: The target token which was removed at each position
+            X: The sequence with the target token removed at each position i, and padded with zeros to length seq_len-1
+            Y: The target token which was removed at each position i
         """
         if X_cat.shape[0] != sum(lengths):
             raise ValueError('Length dimension mismatch: {} and {}'

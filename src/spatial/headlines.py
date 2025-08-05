@@ -48,7 +48,11 @@ def parse_meta(timestamp, headline):
         headline (string): Raw headline text
 
     Returns:
-        metadata (dict): Metadata for headline
+        metadata (dict): Metadata for headline, containing
+            - 'timestamp': timestamp in yyyymmdd format.
+            - 'date': datetime object
+            - 'year': year contained in the timestamp
+            - 'headline': raw headline text
     """
     return {
         'timestamp': timestamp,
@@ -81,7 +85,7 @@ def process(fnames):
 
 def split_seqs(seqs, split_method='random'):
     """
-    Splits sequences into training and test sets.
+    Splits sequences into training and test sets - sequences with oldest date ≥2016-01-01 go to test; others to training
 
     Args:
         seqs (dict[tuple[string], list[dict]]): the sequence dictionary
@@ -117,7 +121,7 @@ def setup():
     Returns:
         Tuple:
             seqs (dict[tuple[string], list[dict]]): the sequence dictionary
-            vocabulary (dict[string, int]): the vocabulary dictionary which maps words to indexes
+            vocabulary (dict[string, int]): the vocabulary dictionary which maps words to indexes starting from 1
     """
     fnames = [ 'data/headlines/abcnews-date-text.csv' ]
     seqs = process(fnames)
@@ -208,6 +212,11 @@ def analyze_semantics(args, model, seq_to_mutate, vocabulary,
                       plot_acquisition=False, verbose=False):
     """
     Performs semantic mutational analysis.
+
+    Plots acquisition graph where requested and prints modifications sorted by acquisition score, least change, and most change.
+
+    Output File (if plot_acquisition):
+        figures/headline_acquisition.png
 
     Args:
         args (argparse.Namespace): Command line arguments

@@ -107,7 +107,7 @@ def featurize_seqs(seqs, vocabulary):
         vocabulary (dict[str, int]): dictionary of residues to a unique index
 
     Returns:
-        X (np.ndarray): concatenated token indices
+        X (np.ndarray): concatenated token indices (including start/end tokens)
         lens (np.ndarray): length of each sequence (including start/end tokens)
     """
     start_int = len(vocabulary) + 1
@@ -140,7 +140,7 @@ def fit_model(name, model, seqs, vocabulary):
 
 def cross_entropy(logprob, n_samples):
     """
-    Converts total log-likelihood into cross-entropy loss.
+    Converts total log-likelihood (sum of log-probabilities) into per-sample cross-entropy loss.
 
     Args:
         logprob (float): sum of log-likelihoods from model.score
@@ -187,7 +187,7 @@ def train_test(args, model, seqs, vocabulary, split_seqs=None):
         Trained model, if args.train is True
 
     Raises:
-        ValueError: if both args.train and arg.train_split are true, or if split_seqs is not a callable
+        ValueError: if both args.train and args.train_split are true, or if split_seqs is not a callable
     """
     if args.train and args.train_split:
         raise ValueError('Training on full and split data is invalid.')
@@ -209,7 +209,7 @@ def train_test(args, model, seqs, vocabulary, split_seqs=None):
 def batch_train(args, model, seqs, vocabulary, batch_size=5000,
                 verbose=True):
     """
-    Trains mini-batches of sequences
+    Trains mini-batches of sequences, and saves checkpoints
 
     Args:
         args (argparse.Namespace): command line arguments
@@ -310,7 +310,7 @@ def predict_sequence_prob(args, seq_of_interest, vocabulary, model,
         verbose (bool): whether to use verbose settings, defaults to False
 
     Returns:
-        y_pred (np.ndarray): each row is the distribution over the vocabulary at that position
+        y_pred (np.ndarray): each row is the distribution over the vocabulary at that position (includes start/end tokens)
     """
     seqs = { seq_of_interest: [ {} ] }
     X_cat, lengths = featurize_seqs(seqs, vocabulary)
@@ -468,7 +468,7 @@ def analyze_semantics(args, model, vocabulary, seq_to_mutate, escape_seqs,
         model: neural network model to be used
         vocabulary (dict[string, int]): dictionary of the available amino acids
         seq_to_mutate (str): sequence to mutate
-        escape_seqs (dict[str, list[dict]]): dictionary of known escape sequences to metadata
+        escape_seqs (dict[str, list[dict]]): dictionary of known escape sequences to their metadata
         min_pos (int): minimum mutation position
         max_pos (int): maximum mutation position
         prob_cutoff (float): probability cutoff for the grammatical fitness

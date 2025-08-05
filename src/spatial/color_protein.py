@@ -4,7 +4,7 @@ import matplotlib
 
 def write_color(chain, resi, acq, of):
     """
-    Generates a coloring command for 3D escape potential maps.
+    Generates PyMOL coloring command for 3D escape potential maps.
 
     Args:
         chain (string): Protein chain identifier
@@ -22,7 +22,7 @@ def write_color(chain, resi, acq, of):
     rgb = cmap(acq)
     of.write('color {}, toColor\n'
              .format(matplotlib.colors.rgb2hex(rgb))
-             .replace('#', '0x'))
+             .replace('#', '0x')) # normalize RGB values to PyMOL by adding 0x
 
 def scale(point, data_min, data_max):
     """
@@ -45,7 +45,7 @@ def generate_pymol_colors(ofname, df, idx_pdb):
     Args:
         ofname (str): Output file name
         df (pandas.DataFrame): Dataframe containing protein chains, with columns pos and acquisition
-        idx_pdb (dict): Maps sequence position to PDB residues
+        idx_pdb (dict): Maps sequence position to list of (chain, residue) tuples
 
     Returns:
         None
@@ -72,7 +72,7 @@ def generate_pymol_colors(ofname, df, idx_pdb):
 def load_data(virus, beta=1.):
     """
     Loads data for the specified virus.
-    Computes acquisition scores from Equations 3-4 for the purpose of visualisation.
+    Computes acquisition scores for the purpose of visualisation.
 
     Args:
         virus (string): Virus identifier

@@ -11,7 +11,7 @@ def msa_subset(ifname, ofname, anchor_id, cutoff=0):
         ifname (string): Name of the input file for the input FASTA (pre-aligned)
         ofname (string): Name of the output file for the output FASTA
         anchor_id (string): Reference sequence ID
-        cutoff (int, optional): Maximum number of non-gap mismatches allowed
+        cutoff (int, optional): Maximum number of positions where the anchor has non-map AA and sequence has a gap.
 
     Returns:
         The processed anchor sequence as a String
@@ -79,8 +79,6 @@ def create_mutants(aligned_str):
 def write_mutants(mutants, mutant_names, outfile):
     """
     Writes generated mutants to a FASTA file.
-
-    Output file: as specified in the output parameter.
 
     Args:
         mutants (list): A list of mutant sequences

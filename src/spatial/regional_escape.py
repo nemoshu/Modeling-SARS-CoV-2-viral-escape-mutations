@@ -10,8 +10,8 @@ def load(virus):
         virus (string): name of the virus to load, from 'h1', 'h3', 'hiv' or 'sarscov2'
 
     Returns:
-        escape_fname (string): filename of the escape file
-        region_fname (string): filename of the region file
+        escape_fname (string): filename of a cached file with semantic escape data
+        region_fname (string): filename of a file containing protein regions
 
     Raises:
         ValueError: if the virus name is not supported.
@@ -42,13 +42,13 @@ def regional_escape(virus, beta=1., n_permutations=100000):
 
     Args:
         virus (string): name of the virus to load, from 'h1', 'h3', 'hiv' or 'sarscov2'
-        beta (float): beta parameter
+        beta (float): beta parameter.  acquisition = rank(change) + beta * rank(prob)
         n_permutations (int): number of permutations to compute
 
     Returns:
         None
 
-    Output files:
+    Output files (Bar chart of -log10(p-value) for each region):
         figures/regional_escape_{virus}.svg
     """
     escape_fname, region_fname = load(virus)
@@ -109,15 +109,17 @@ def regional_escape(virus, beta=1., n_permutations=100000):
         real_score = np.mean(name2escape[name])
         size = name2size[name]
         null_distribution = []
+
         for perm in range(n_permutations):
             rand_positions = np.random.choice(all_pos, size=size,
-                                              replace=False)
+                                              replace=False) # random samples of the same size as each region
             null_score = np.concatenate([
                 np.array(pos2scores[pos]) for pos in rand_positions
             ]).mean()
             null_distribution.append(null_score)
         null_distribution = np.array(null_distribution)
 
+        # compare mean acquisition scores of the null distribution to the real region mean
         tprint('Enriched for escapes:')
         p_val = (sum(null_distribution >= real_score)) / \
                 (n_permutations)

@@ -21,7 +21,7 @@ def plot_reinfection(namespace='reinfection'):
     with open('target/cov/reinfection/cache/cov_mut_{}.txt'
               .format(namespace)) as f:
         fields = f.readline().rstrip().split()
-        base_prob, base_change = float(fields[2]), float(fields[3])
+        base_prob, base_change = float(fields[2]), float(fields[3]) # baseline values
 
         n_hprob_hchange = 0
         n_hprob_lchange = 0
@@ -56,7 +56,7 @@ def plot_reinfection(namespace='reinfection'):
         # reinfection plot
         plt.figure(figsize=(4, 4))
         plt.scatter(probs, changes, c='#aaaaaa', s=10)
-        plt.scatter([ base_prob ], [ np.log10(base_change) ], c='k')
+        plt.scatter([ base_prob ], [ np.log10(base_change) ], c='k') # log10-transformed semantic change
         plt.axhline(y=np.log10(base_change), color='k', linestyle='--')
         plt.axvline(x=base_prob, color='k', linestyle='--')
         plt.savefig('figures/cov_reinfection_{}.png'
@@ -64,4 +64,7 @@ def plot_reinfection(namespace='reinfection'):
         plt.close()
 
 if __name__ == '__main__':
+    """
+    "Runs reinfection analysis using the provided namespace (from command line) to locate input files and name output plots.
+    """
     plot_reinfection(sys.argv[1])

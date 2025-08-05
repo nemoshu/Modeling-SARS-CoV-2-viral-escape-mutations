@@ -5,7 +5,7 @@ def print_purity(metas, entries):
     Calculates and prints out cluster purity for the specified metadata fields
 
     Args:
-        metas (dict): Dictionary of metadata for sequences
+        metas (dict): Dictionary of metadata for sequences, mapping sequences to their metadata dictionaries
         entries (list): List of metadata fields to evaluate
 
     Returns:
@@ -33,46 +33,13 @@ def print_purity(metas, entries):
         tprint('Purity, phylo clustering and {}: {}'
                .format(entry, np.mean(largest_pct_entry)))
 
-def print_purity(metas, entries):
-    """
-    Calculates and prints out cluster purity for the specified metadata fields
-
-    Args:
-        metas (dict): Dictionary of metadata for sequences
-        entries (list): List of metadata fields to evaluate
-
-    Returns:
-        None
-    """
-    for entry in entries:
-        tprint('Calculating purity of {}'.format(entry))
-        # calculating purities for each entry
-        cluster2entry = {} # cluster to entry dictionary
-        for accession in metas:
-            meta = metas[accession]
-            try:
-                cluster = meta['cluster']
-            except:
-                continue # if there is no cluster data, skip
-            if cluster not in cluster2entry:
-                cluster2entry[cluster] = []
-            cluster2entry[cluster].append(meta[entry]) # add entry to the appropriate key
-        largest_pct_entry = []
-        for cluster in cluster2entry:
-            # count the number of metadata value appears, and extract the frequency of the most common value
-            count = Counter(cluster2entry[cluster]).most_common(1)[0][1]
-            pct = float(count) / len(cluster2entry[cluster]) # percentage
-            largest_pct_entry.append(pct)
-            tprint('Cluster {}, largest % = {}'.format(cluster, pct))
-        tprint('Purity, phylo clustering and {}: {}'
-               .format(entry, np.mean(largest_pct_entry)))
 
 def flu_purity(phylo_method='mafft'):
     """
-    Ensures influenza clusters are subtype/host-homogeneous for temporal analysis
+    Calculates and prints cluster purity for influenza sequences
 
     Args:
-        phylo_method(str, optional): Phylogenetic clustering method. Defaults to 'mafft'.
+        phylo_method(str, optional): Phylogenetic clustering method (e.g., 'mafft', 'clustalomega'). Defaults to 'mafft'.
 
     Returns:
         None
@@ -123,7 +90,7 @@ def flu_purity(phylo_method='mafft'):
 
 def hiv_purity(phylo_method='mafft'):
     """
-    Ensures HIV clusters are subtype/host-homogeneous for temporal analysis
+    Calculates and prints cluster purity for influenza sequences
 
      Args:
         phylo_method(str, optional): Phylogenetic clustering method. Defaults to 'mafft'.
@@ -176,7 +143,7 @@ if __name__ == '__main__':
     """
     Runs cluster purity analysis for Flu and HIV.
     
-    Command line argument: Phylo Method (defaults to 'mafft' if non provided)
+    Command line argument: Phylo Method
     
     Input files:
         as specified in flu_purity() and hiv_purity() functions

@@ -23,6 +23,9 @@ def positional_encoding(position, d_model):
     Args:
         position (int): maximum sequence length
         d_model (int): embedding dimension
+
+    Returns:
+        encodings (np.ndarray): sinusoidal positional encoding, shape (1, position, d_model)
     """
     angle_rads = get_angles(np.arange(position)[:, np.newaxis],
                             np.arange(d_model)[np.newaxis, :],
@@ -164,6 +167,9 @@ def point_wise_feed_forward_network(d_model, dff):
     Args:
         d_model (int): input/output dimension
         dff (int): inner-layer dimension
+
+    Returns:
+        output (tf.keras.Sequential): Point-wise feed forward layer
     """
     return tf.keras.Sequential([
         tf.keras.layers.Dense(dff, activation='relu'),

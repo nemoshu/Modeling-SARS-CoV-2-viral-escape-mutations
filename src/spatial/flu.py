@@ -74,7 +74,7 @@ def load_meta(meta_fnames):
 
 def process(fnames, meta_fnames):
     """
-    Process metadata to parse and filter sequences.
+    Process metadata to parse and filter sequences with more than 10 ambiguous residues.
 
     Args:
         fnames (list[str]): The list of filenames of FASTA files.
@@ -101,6 +101,7 @@ def process(fnames, meta_fnames):
 def split_seqs(seqs):
     """
     Splitting sequences into training and test sets.
+    Test sequences are those with oldest collection dates <1990 or ≥2018; otherwise classed as train sequences
 
     Args:
         seqs (dict[str, list[dict]]): The sequences dictionary
@@ -160,7 +161,8 @@ def setup(args):
 
 def interpret_clusters(adata):
     """
-    Interprets and prints the contents of each Louvain cluster.
+    Interprets clusters by reporting cluster purity and the most common subtype,
+    and prints the contents of each Louvain cluster.
 
     Args:
         adata (anndata.AnnData): Annotated data object
@@ -218,6 +220,9 @@ def seq_clusters(adata):
     """
     Writes most common sequences to FASTA.
 
+    Output Files:
+        target/influenza/clusters/cluster{cluster}.fa
+
     Args:
         adata (anndata.AnnData): Annotated data object
 
@@ -243,6 +248,12 @@ def plot_umap(adata, namespace='influenza'):
 
     Returns:
         None
+
+    Output Files:
+        - figures/umap_{namespace}_species.png
+        - figures/umap_{namespace}_subtype.png
+        - figures/umap_{namespace}_date.png
+        - figures/umap_{namespace}_louvain.png
     """
     if namespace == 'flu1918':
         plt.figure()
@@ -309,10 +320,12 @@ def analyze_embedding(args, model, seqs, vocabulary):
     ]
 
     sc.pp.neighbors(adata, n_neighbors=100, use_rep='X')
+    # Louvain clustering
     sc.tl.louvain(adata, resolution=1.)
 
     sc.set_figure_params(dpi_save=500)
 
+    # UMAP dimensionality reduction
     sc.tl.umap(adata, min_dist=1.)
     plot_umap(adata)
     plot_umap(adata[adata.obs['louvain'] == '30'],

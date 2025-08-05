@@ -8,10 +8,10 @@ def subtype_selection(subtype):
     Translate a subtype in the string format into the corresponding integer subtype flag.
 
     Args:
-        subtype (str): subtype to translate, from 'H1N1', 'H3N2', 'H3N3' or 'COV19'
+        subtype (str): subtype to translate, from 'H1N1', 'H3N2', 'H5N1' or 'COV19'
 
     Returns:
-        subtype_flag (int): subtype flag
+        subtype_flag (int): subtype flag, mapping 'H1N1', 'H3N2', 'H5N1', 'COV19' to 0, 1, 2, 3 respectively
     """
     global subtype_flag, data_path
     if subtype == 'H1N1':
@@ -39,8 +39,8 @@ def read_trigram_vecs(subtype):
         subtype (any): unused
 
     Returns:
-        trigram_to_idx (dict): trigram to index map
-        trigram_vec (list): trigram vectors
+        trigram_to_idx (dict[list, int]): trigram to index map
+        trigram_vec (dataframe): trigram vectors for each trigram, shaped (n_trigrams, 100)
     """
     data_path = '/Users/nemoshu/Computer science experiments/UCL/BiologyNLP/output/'
     prot_vec_file = 'protVec_100d_3grams.csv'
@@ -63,7 +63,7 @@ def read_strains_from(data_files, data_path):
         data_path (str): directory containing the data files
 
     Returns:
-        raw_strains (list): list of raw strains
+        raw_strains (list): list of raw strains, where each element is a pandas series
     """
     # _, data_path = subtype_selection(subtype)
     raw_strains = []

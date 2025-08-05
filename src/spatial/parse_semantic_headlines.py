@@ -2,11 +2,13 @@ from utils import *
 
 def semantic_headlines(dirname):
     """
-    Reads semantic headline files and human judgements. Reports human agreement and per-type grammaticality rates
+    Reads semantic headline files and human judgements.
+    Reports (prints out) human agreement and per-type grammaticality rates
 
     Args:
-        dirname (str): the directory containing the semantic headlines
-
+        dirname (str): the directory containing the semantic headlines, which should include
+            - {dirname}/semantic_headlines_labeled_{dataset}.csv
+            - {dirname}/semantic_headlines_{dataset}_response{1/2}.csv
     Returns:
         None
     """

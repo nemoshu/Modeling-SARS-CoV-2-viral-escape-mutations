@@ -12,15 +12,15 @@ import random
 def read_and_process_to_trigram_vecs(data_files, subtype, sample_size=100, test_split=0.0, squeeze=True,
                                      extract_epitopes=False):
     """
-    Reads viral strain data, splits into training/testing sets, and processes it into trigram vectors.
+    Reads viral strain data from ``data_files``, splits into training/testing sets, and processes it into trigram vectors.
 
     Args:
         data_files (list): list of filenames containing strain data
         subtype (str): viral subtype to specify the dataset
         sample_size (int): number of samples to use
         test_split (float): fraction of data to include in test set
-        squeeze (bool): whether to squeeze trigrams
-        extract_epitopes (bool): whether to extract epitopes only
+        squeeze (bool): whether to squeeze trigrams, i.e., combine trigrams across strains in a year
+        extract_epitopes (bool): whether to extract predefined epitopes only
 
     Returns:
         train_trigram_vecs (list): trigram feature vectors for training data
@@ -58,10 +58,15 @@ def process_years(strains_by_year, data_path, squeeze=True, extract_epitopes=Fal
         data_path (str): path to trigram vector data
         squeeze (bool): whether to squeeze trigrams
         extract_epitopes (bool): whether to extract epitopes only
+
+    Returns:
+        trigram_vecs (nparray): trigram feature vectors
+        trigram_idxs (list): integer mapping of trigrams.
     """
+
     if (len(strains_by_year[0]) == 0): return [], [] # empty year
     trigram_to_idx, trigram_vecs_data = make_dataset.read_trigram_vecs(data_path)
-    trigrams_by_year = build_features.split_to_trigrams(strains_by_year)
+    trigrams_by_year = build_features.split_to_trigrams(strains_by_year) # convert strain into trigrams
 
     if extract_epitopes:
         epitope_a = [122, 124, 126, 130, 131, 132, 133, 135, 137, 138, 140, 142, 143, 144, 145, 146, 150, 152, 168]
@@ -81,7 +86,7 @@ def process_years(strains_by_year, data_path, squeeze=True, extract_epitopes=Fal
     if squeeze:
         trigrams_by_year = build_features.squeeze_trigrams(trigrams_by_year)
 
-    trigram_idxs = build_features.map_trigrams_to_idxs(trigrams_by_year, trigram_to_idx)
+    trigram_idxs = build_features.map_trigrams_to_idxs(trigrams_by_year, trigram_to_idx) # mapping trigrams to indexes
 
     trigram_vecs = build_features.map_idxs_to_vecs(trigram_idxs, trigram_vecs_data)
 
@@ -119,7 +124,7 @@ def read_dataset(path, data_path, limit=0, concat=False):
         path (str): path to CSV dataset
         data_path (str): path to trigram vector data
         limit (int): maximum number of examples to read (0 means no limit)
-        concat (bool): whether to concatenate trigram vectors
+        concat (bool): whether to concatenate trigram vectors for each year. False means to sum them.
 
     Returns:
         trigram_vecs (np.array): trigram vectors, shape [num_time_steps, num_samples, feature_dim]

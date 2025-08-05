@@ -37,7 +37,7 @@ def print_result(fitnesses, predictions, virus):
 
 def fitness_energy(virus):
     """
-    Evaluates and prints fitness energy scores.
+    Evaluates fitness predictions using energy scores, and prints results.
 
     Args:
         virus (str): name of the virus to print
@@ -92,7 +92,7 @@ def fitness_energy(virus):
 
 def fitness_evcouplings(virus):
     """
-    Benchmarks and prints fitness EVcoupling scores.
+    Benchmarks fitness predictions using EVCoupling scores, and prints out results.
 
     Args:
         virus (str): name of the virus to print
@@ -175,7 +175,7 @@ def fitness_evcouplings(virus):
 
 def fitness_freq(virus):
     """
-    Benchmarks mutation frequency against experimental fitness, and prints the results.
+    Benchmarks fitness predictions using mutation frequencies, and prints the results.
 
     Args:
         virus (str): the virus to test

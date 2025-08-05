@@ -27,7 +27,7 @@ def load(virus):
 
     Returns:
         tuple:
-            seq (string): Reference sequence
+            seq (string): Wild-type reference sequence
             seqs_escape (dict[str, list[dict]]): the dictionary which maps mutant sequence to escape metadata
             train_fname (str): path to the training file
             mut_fname (str): path to all single-mutation sequences
@@ -75,7 +75,7 @@ def plot_result(rank_vals, escape_idx, virus, fname_prefix,
     Plots and saves cumulative hit curves for top ranked mutations and computes AUC.
 
     Args:
-        rank_vals(nparray): scores for mutations
+        rank_vals(nparray): ranking for mutations by escape potential
         escape_idx(list): indices for known escape mutants
         virus (str): virus name
         fname_prefix(str): prefix for filenames
@@ -115,7 +115,7 @@ def plot_result(rank_vals, escape_idx, virus, fname_prefix,
 
 def escape_evcouplings(virus, vocabulary):
     """
-    Evaluates EVCoupling scores for each mutation and benchmark, and plots results.
+    Evaluates epistatic and independent EVCoupling scores for each mutation and benchmark, and plots results.
 
     Args:
         virus (str): virus name
@@ -193,7 +193,7 @@ def escape_evcouplings(virus, vocabulary):
 
 def escape_freq(virus, vocabulary):
     """
-    Benchmarks prediction of escape mutations by frequency, and plots the results
+    Benchmarks prediction of escape mutations by mutation frequency, and plots the results
 
     Args:
         virus (string): the name of the virus
@@ -253,12 +253,12 @@ def tape_embed(sequence, model, tokenizer):
     Computes mean embedding using TAPE model.
 
     Args:
-        sequence (list[str]): the sequence to be embedded
+        sequence (str): the sequence to be embedded
         model (torch.nn.Module): the model to be used
         tokenizer (Tokenizer): TAPE tokenizer
 
     Returns:
-        np.ndarray: the embedding vector
+        np.ndarray: the mean embedding vector
     """
     import torch
     token_ids = torch.tensor([tokenizer.encode(sequence)])
@@ -433,6 +433,11 @@ def escape_bepler(virus, vocabulary):
     plot_result(-changes, escape_idx, virus, 'bepler', legend_name='Bepler')
 
 if __name__ == '__main__':
+    """
+    Performs escape prediction benchmarking using the model specified in the method CLI argument.
+    
+    Accepted methods: 'bepler', 'energy', 'evcouplings', 'freq', 'tape', 'unirep'
+    """
     args = parse_args()
 
     vocabulary = [

@@ -130,7 +130,7 @@ def calculate_prob(scores):
         scores (tensor): logits
 
     Returns:
-        pred_probe (tensor): prediction probabilities
+        pred_probe (tensor): prediction probabilities, shaped (batch_size, 1)
     """
     prob = F.softmax(scores, dim=1)
     pred_probe, _ = prob.topk(1)

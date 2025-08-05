@@ -106,7 +106,7 @@ def load_dingens2019(survival_cutoff=0.11):
     Returns:
         Tuple:
             seq (string): wild-type sequence
-            seq_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
+            seqs_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
     """
     pos_map = {}
     with open('data/hiv/escape_dingens2019/BG505_to_HXB2.csv') as f:
@@ -156,7 +156,7 @@ def load_baum2020():
     Returns:
         Tuple:
             seq (string): wild-type sequence
-            seq_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
+            seqs_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
     """
     seq = SeqIO.read('data/cov/cov2_spike_wt.fasta', 'fasta').seq
 
@@ -197,7 +197,7 @@ def load_greaney2020(survival_cutoff=0.3,
     Returns:
         Tuple:
             seq (string): wild-type sequence
-            seq_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
+            seqs_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
     """
     seq = SeqIO.read('data/cov/cov2_spike_wt.fasta', 'fasta').seq
 

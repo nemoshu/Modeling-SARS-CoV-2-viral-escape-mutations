@@ -7,9 +7,13 @@ def load_doud2016():
     """
     Loads H1 influenza fitness data.
 
+    Input Files:
+        - data/influenza/escape_doud2018/WSN1933_H1_HA.fa
+        - data/influenza/fitness_doud2016/Supplemental_File_2_HApreferences.txt
+
     Returns:
         - strains (dict): Dictionary of wild-type sequences {strain: wt_seq}
-        - seqs_fitness (dict): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data:
+        - seqs_fitness (dict[list]): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data in each list:
             - fitnesses
             - preferences
             - wildtype
@@ -78,7 +82,7 @@ def load_haddox2018():
 
     Returns:
         - strains (dict): Dictionary of wild-type sequences {strain: wt_seq}
-        - seqs_fitness (dict): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data:
+        - seqs_fitness (dict[list]): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data in each list:
             - strain
             - fitnesses
             - preferences
@@ -155,7 +159,7 @@ def load_wu2020():
 
     Returns:
         - strains (dict): Dictionary of wild-type sequences {strain: wt_seq}
-        - seqs_fitness (dict): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data:
+        - seqs_fitness (dict[list]): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data in each list:
             - fitness
             - preference
             - wildtype
@@ -234,7 +238,7 @@ def load_starr2020():
 
     Returns:
         - strains (dict): Dictionary of wild-type sequences {strain: wt_seq}
-        - seqs_fitness (dict): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data:
+        - seqs_fitness (dict[list]): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data in each list:
             - fitnesses
             - preferences
             - wildtype

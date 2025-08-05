@@ -43,7 +43,7 @@ def parse_args():
 
 def load_meta(meta_fnames):
     """
-    Loads metadata from files.
+    Loads metadata from FASTA header files.
 
     Args:
         meta_fnames (list[str]): The list of file names containing metadata
@@ -95,7 +95,7 @@ def process(args, fnames, meta_fnames):
     Args:
         args (argparse.Namespace): Arguments parsed from CLI
         fnames (list[str]): The list of filenames of FASTA files.
-        meta_fnames (list[str]): The list of filenames of Metadata TSVs.
+        meta_fnames (list[str]): The list of filenames of Metadata from FASTA headers.
 
     Returns:
         seqs (dict[str, list[dict]]): dictionary mapping unique sequences to lists of corresponding metadata
@@ -121,6 +121,7 @@ def process(args, fnames, meta_fnames):
 def split_seqs(seqs, split_method='random'):
     """
        Splitting sequences into training and test sets.
+       Test set includes sequences with oldest date <1900, ≥2008, or no date.
 
        Args:
            seqs (dict[str, list[dict]]): The sequences dictionary
@@ -159,7 +160,7 @@ def split_seqs(seqs, split_method='random'):
 
 def setup(args):
     """
-        Constructs the model and loads the hiv sequence data.
+        Constructs the model and loads the HIV sequence data.
 
         Args:
             args (argparse.Namespace): The arguments parsed from the command line
@@ -185,7 +186,8 @@ def setup(args):
 
 def interpret_clusters(adata):
     """
-        Interprets and prints the contents of each Louvain cluster.
+        Prints contents for each cluster.
+        Calculates cluster purity (percentage of the most common subtype in each cluster) and prints the mean purity across clusters.
 
         Args:
             adata (anndata.AnnData): Annotated data object
@@ -228,10 +230,13 @@ def plot_umap(adata):
 
         Args:
             adata (anndata.AnnData): Annotated data object
-            namespace (str): Prefix namespace for output filenames. Defaults to 'influenza'.
 
         Returns:
             None
+
+        Output Files:
+            umap_hiv_louvain.png
+            umap_hiv_subtype.png
     """
     sc.tl.umap(adata, min_dist=1.)
     sc.pl.umap(adata, color='louvain', save='_hiv_louvain.png')

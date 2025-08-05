@@ -268,8 +268,8 @@ def plot_umap(adata, categories, namespace='cov'):
         categories (list[str]): Metadata columns to use for coloring
         namespace (str): Prefix namespace for output filenames. Defaults to 'cov'.
 
-    Output Files:
-        - _cov_{category}.png
+    Output File:
+        - figures/{namespace}umap{category}.png
     """
     for category in categories:
         sc.pl.umap(adata, color=category,

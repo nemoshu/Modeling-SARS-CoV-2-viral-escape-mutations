@@ -16,7 +16,7 @@ def compute_p(true_val, n_interest, n_total, n_permutations=10000):
         p (float): P-value estimating the probability that the observed AUC (true-val) would occur.
     """
 
-    # Stimulates a null distribution
+    # Simulates a null distribution
     null_distribution = []
     norm = n_interest * n_total
     for _ in range(n_permutations):
@@ -39,7 +39,7 @@ def cached_escape(cache_fname, beta, plot=True, namespace='semantics'):
 
     Args:
         cache_fname (str): Path to a cached file containing model outputs.
-        beta (float): Beta parameter - weighting factor in the acquisition score.
+        beta (float): Beta parameter - weighting factor in the acquisition score (acquisition = rank(change) + beta * rank(prob))
         plot (bool, optional): Whether to generate plots. Defaults to True.
         namespace (str, optional): Prefix for output filenames. Defaults to 'semantics'.
     """
@@ -200,7 +200,7 @@ if __name__ == '__main__':
     Generates escape prediction maps and discovery curves, 
     and evaluates escape mutation detection performance.
     
-    Command line argument: Path of Input File
+    Command line argument: Path of Input File containing model outputs
     
     Input File: as specified in the command line argument
     Output Files: 

@@ -21,7 +21,7 @@ def label_encode(strains):
         strains(list[string]): strain sequences in AA characters
 
     Returns:
-        encoded_strains(list[string]): encoded strains in numerical form
+        encoded_strains(list[list[int]]): list of encoded strains as normalized encodings
     """
     amino_acids = ['A', 'F', 'Q', 'R', 'T', 'Y', 'V', 'I', 'H', 'K', 'P', 'N', 'E', 'G', 'S', 'M', 'D', 'W', 'C', 'L', '-', 'B', 'J', 'Z', 'X']
     le = preprocessing.LabelEncoder()
@@ -40,10 +40,10 @@ def label_decode(encoded_strains):
     Decodes encoded strains into AA characters.
 
     Args:
-        encoded_strains(list[string]): encoded strains in numerical form
+        encoded_strains(list[list[int]]): encoded strains in numerical form
 
     Returns:
-        strains(list[string]): decoded strains in AA characters
+        strains(list[list[string]]): 2D list [year] [strain] of decoded strains
     """
     amino_acids = ['A', 'F', 'Q', 'R', 'T', 'Y', 'V', 'I', 'H', 'K', 'P', 'N', 'E', 'G', 'S', 'M', 'D', 'W', 'C', 'L', '-', 'B', 'J', 'Z', 'X']
     le = preprocessing.LabelEncoder()
@@ -69,7 +69,10 @@ def strain_cluster(strains,num_clusters=2):
         num_clusters(int): number of clusters
 
     Returns:
-        result (dict[string, list]): a dictionary containing keys 'data', 'labels' and 'centroids'.
+        result (dict[string, list]): a dictionary containing:
+            'data': encoded strains using label_encode()
+            'labels': cluster assignments
+            'centroids': cluster centers
     """
     encoded_strains = label_encode(strains)
     kmeans = KMeans(n_clusters=num_clusters, random_state=0)
@@ -87,15 +90,17 @@ def show_cluster(cluster,save_fig_path='none'):
     Args:
         cluster (dict): a dictionary containing keys 'data', 'labels' and 'centroids', typically output of strain_cluster.
         save_fig_path(string): path to save the figure. Default is 'none' which no image will be saved.
+
     Returns:
         None
-    Output File (PCA scatter plot) : as specified in save_fig_path parameter
+
+    Output File (PCA scatter plot) : as specified in save_fig_path parameter, saved only when provided
     """
     encoded_strains = cluster['data']
-    pca = PCA(n_components=2)
+    pca = PCA(n_components=2) # reduce to 2D using PCA
     reduced_data = pca.fit_transform(encoded_strains)
     fig = plt.figure()
-    colors = 10 * ['r.', 'g.', 'y.', 'c.', 'm.', 'b.', 'k.']
+    colors = 10 * ['r.', 'g.', 'y.', 'c.', 'm.', 'b.', 'k.'] # distinct colors for clusters
     labels = cluster['labels']
     for i in range(len(reduced_data)):
         plt.plot(reduced_data[i][0], reduced_data[i][1], colors[labels[i]], markersize=10)
@@ -108,6 +113,8 @@ def link_clusters(clusters):
     """
     Links clusters in different years using nearest neighbor analysis.
 
+    Adds 'links' key to each cluster, which are list mappings of current cluster labels to the nearest neighbor cluster indices.
+
     Args:
         clusters (list[dict]): a list of clusters to link
 
@@ -115,7 +122,7 @@ def link_clusters(clusters):
         None (modifies the passed in cluster directly)
     """
     no_years = len(clusters) # each cluster represents one year
-    neigh = NearestNeighbors(n_neighbors=2) # analyze the two nearest neigbors
+    neigh = NearestNeighbors(n_neighbors=2) # analyze the two nearest neighbors
     for year_idx in range(no_years):
         if year_idx == no_years - 1:  # last year doesn't link
             clusters[year_idx]['links'] = []
@@ -141,7 +148,7 @@ def sample_from_clusters(clusters_by_years, sample_size):
         sample_size (int): number of samples to generate
 
     Returns:
-        sampled_strains(list[list]): sampled strains across times
+        sampled_strains(list[list]): list of sample_size time-series, each being a list of strains
     """
     sampled_strains = []
     for i in range(sample_size):
@@ -168,6 +175,8 @@ def create_dataset(strains, position, window_size=10, output_path='None'):
     """
     Constructs training data for predicting mutation escape.
 
+    9047 is the default index for unknown trigrams.
+
     Args:
         strains (list[list]): a list of strains across time - n_sample*n_year, each item is a strain(str)
         position (int): the position of the strain
@@ -179,7 +188,7 @@ def create_dataset(strains, position, window_size=10, output_path='None'):
 
     Input File (CSV File of Dataset): data/raw/H1N1/protVec_100d_3grams.csv
     """
-    # create label
+    # create label - 1 if AA at position differs between the last two years and 0 otherwise
     label = []
     for sample in strains:
         if sample[-1][position] == sample[-2][position]:
