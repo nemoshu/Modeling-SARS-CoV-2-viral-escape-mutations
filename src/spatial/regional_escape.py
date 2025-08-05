@@ -3,12 +3,25 @@ from utils import *
 from intervaltree import IntervalTree
 
 def load(virus):
+    """
+    Returns the corresponding data filenames for each supported virus.
+
+    Args:
+        virus (string): name of the virus to load, from 'h1', 'h3', 'hiv' or 'sarscov2'
+
+    Returns:
+        escape_fname (string): filename of the escape file
+        region_fname (string): filename of the region file
+
+    Raises:
+        ValueError: if the virus name is not supported.
+    """
     if virus == 'h1':
-        escape_fname = ('target/flu/semantics/cache/'
+        escape_fname = ('target/influenza/semantics/cache/'
                         'analyze_semantics_flu_h1_bilstm_512.txt')
         region_fname = 'data/influenza/h1_regions.txt'
     elif virus == 'h3':
-        escape_fname = ('target/flu/semantics/cache/'
+        escape_fname = ('target/influenza/semantics/cache/'
                         'analyze_semantics_flu_h3_bilstm_512.txt')
         region_fname = 'data/influenza/h3_regions.txt'
     elif virus == 'hiv':
@@ -24,6 +37,20 @@ def load(virus):
     return escape_fname, region_fname
 
 def regional_escape(virus, beta=1., n_permutations=100000):
+    """
+    Compute permutation-based P-value for each region, and plots them in a bar chart.
+
+    Args:
+        virus (string): name of the virus to load, from 'h1', 'h3', 'hiv' or 'sarscov2'
+        beta (float): beta parameter
+        n_permutations (int): number of permutations to compute
+
+    Returns:
+        None
+
+    Output files:
+        figures/regional_escape_{virus}.svg
+    """
     escape_fname, region_fname = load(virus)
 
     # Parse protein regions, keep track of intervals,
@@ -126,6 +153,12 @@ def regional_escape(virus, beta=1., n_permutations=100000):
     plt.savefig('figures/regional_escape_{}.svg'.format(virus))
 
 if __name__ == '__main__':
+    """
+    Compute permutation-based P-value for each region, and plots them in a bar chart.
+      
+    Command line argument:
+        virus (name of the virus to load, from 'h1', 'h3', 'hiv' or 'sarscov2')
+    """
     virus = sys.argv[1]
 
     regional_escape(virus)

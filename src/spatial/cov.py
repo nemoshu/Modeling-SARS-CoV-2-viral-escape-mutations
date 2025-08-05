@@ -4,6 +4,12 @@ np.random.seed(1)
 random.seed(1)
 
 def parse_args():
+    """
+    Configures analysis pipeline from CLI.
+
+    Returns:
+        argparse.Namespace
+    """
     import argparse
     parser = argparse.ArgumentParser(description='Coronavirus sequence analysis')
     parser.add_argument('model_name', type=str,
@@ -38,6 +44,15 @@ def parse_args():
     return args
 
 def parse_viprbrc(entry):
+    """
+    Parses the VIPRBRC dataset to metadata.
+
+    Args:
+        entry (str): header string for viprbrc entry
+
+    Returns:
+        meta (dict): metadata of the viprbrc entry
+    """
     fields = entry.split('|')
     if fields[7] == 'NA':
         date = None
@@ -66,6 +81,13 @@ def parse_viprbrc(entry):
     return meta
 
 def parse_nih(entry):
+    """
+    Parses the NIH dataset to metadata.
+    Args:
+        entry (str): header string for nih entry
+    Returns:
+        meta (dict): metadata of the nih entry
+    """
     fields = entry.split('|')
 
     country = fields[3]
@@ -87,6 +109,14 @@ def parse_nih(entry):
     return meta
 
 def parse_gisaid(entry):
+    """
+    Parses the GISAID dataset to metadata.
+
+    Args:
+        entry (str): header string for gisaid entry
+    Returns:
+        meta (dict): metadata of the gisaid entry
+    """
     fields = entry.split('|')
 
     type_id = fields[1].split('/')[1]
@@ -119,13 +149,22 @@ def parse_gisaid(entry):
     return meta
 
 def process(fnames):
+    """
+    Processes metadata, filters sequences such that they contain at least 1000 AA and no ambiguous residues,
+    and writes consolidated metadata.
+
+    Args:
+        fnames (list[str]): the list FASTA file names
+    Returns:
+        seqs(dict[str, list[metadata]]): the dictionary of the processed sequences
+    """
     seqs = {}
     for fname in fnames:
         for record in SeqIO.parse(fname, 'fasta'):
             if len(record.seq) < 1000:
-                continue
+                continue # if sequence is too short, skip
             if str(record.seq).count('X') > 0:
-                continue
+                continue # if there is an ambiguous residue ('X'), skip
             if record.seq not in seqs:
                 seqs[record.seq] = []
             if fname == 'data/cov/viprbrc_db.fasta':
@@ -137,16 +176,25 @@ def process(fnames):
             meta['accession'] = record.description
             seqs[record.seq].append(meta)
 
+    # writes filtered records to cov_all.fa
     with open('data/cov/cov_all.fa', 'w') as of:
         for seq in seqs:
             metas = seqs[seq]
             for meta in metas:
                 of.write('>{}\n'.format(meta['accession']))
                 of.write('{}\n'.format(str(seq)))
-
     return seqs
 
-def split_seqs(seqs, split_method='random'):
+def split_seqs(seqs):
+    """
+    Splits sequences into training and test sets.
+
+    Args:
+        seqs(dict[str, list[metadata]]): the dictionary of the processed sequences
+    Returns:
+        train_seqs (dict[str, list[metadata]]): the training sequences
+        test_seqs (dict[str, list[metadata]]): the test sequences
+    """
     train_seqs, test_seqs = {}, {}
 
     tprint('Splitting seqs...')
@@ -161,6 +209,21 @@ def split_seqs(seqs, split_method='random'):
     return train_seqs, test_seqs
 
 def setup(args):
+    """
+    Sets up the analysis pipeline.
+
+    Args:
+        args (argparse.Namespace): command line arguments
+
+    Returns:
+        model (torch.nn.Module): untrained neural network model to be used
+        seqs(dict[str, list[metadata]]): the dictionary of the processed sequences
+
+    Input Files:
+        - data/cov/sars_cov2_seqs.fa
+        - data/cov/viprbrc_db.fasta
+        - data/cov/gisaid.fasta
+    """
     fnames = [ 'data/cov/sars_cov2_seqs.fa',
                'data/cov/viprbrc_db.fasta',
                'data/cov/gisaid.fasta' ]
@@ -176,6 +239,15 @@ def setup(args):
     return model, seqs
 
 def interpret_clusters(adata):
+    """
+    Prints the most common values of host, country and strain in adata.
+
+    Args:
+        adata (anndata.AnnData): Annotated data object
+
+    Returns:
+        None
+    """
     clusters = sorted(set(adata.obs['louvain']))
     for cluster in clusters:
         tprint('Cluster {}'.format(cluster))
@@ -188,22 +260,48 @@ def interpret_clusters(adata):
         tprint('')
 
 def plot_umap(adata, categories, namespace='cov'):
+    """
+    Generates and saves UMAP plots for each category.
+
+    Args:
+        adata (anndata.AnnData): Annotated data object
+        categories (list[str]): Metadata columns to use for coloring
+        namespace (str): Prefix namespace for output filenames. Defaults to 'cov'.
+
+    Output Files:
+        - _cov_{category}.png
+    """
     for category in categories:
         sc.pl.umap(adata, color=category,
                    save='_{}_{}.png'.format(namespace, category))
 
 def analyze_embedding(args, model, seqs, vocabulary):
-    seqs = embed_seqs(args, model, seqs, vocabulary, use_cache=True)
+    """
+    Generates sequence embeddings, and visualizes clusters using UMAP and Louvain clusters.
+
+    Also generates and saves annotated UMAP plots.
+
+    Args:
+        args (argparse.Namespace): command line arguments
+        model (torch.nn.Module): the neural network model to be used
+        seqs (dict[str, list]): the dictionary of the sequences
+        vocabulary (dict[str, int]): the dictionary of the AA vocabulary
+
+    Returns:
+        None
+    """
+
+    seqs = embed_seqs(args, model, seqs, vocabulary, use_cache=True) # embed sequences
 
     X, obs = [], {}
-    obs['n_seq'] = []
-    obs['seq'] = []
+    obs['n_seq'] = [] # number of times each sequence appears
+    obs['seq'] = [] # string form of each sequence
     for seq in seqs:
         meta = seqs[seq][0]
-        X.append(meta['embedding'].mean(0))
+        X.append(meta['embedding'].mean(0)) # average embedding vectors per sequence
         for key in meta:
             if key == 'embedding':
-                continue
+                continue # skip header
             if key not in obs:
                 obs[key] = []
             obs[key].append(Counter([
@@ -229,17 +327,21 @@ def analyze_embedding(args, model, seqs, vocabulary):
     adata_cov2 = adata[(adata.obs['louvain'] == '0') |
                        (adata.obs['louvain'] == '2')]
     plot_umap(adata_cov2, [ 'host', 'group', 'country' ],
-              namespace='cov7')
+              namespace='cov7') # saves coloured maps
 
 if __name__ == '__main__':
+    """
+    Runs training for SARS-COV-2 datasets as specified by the command line arguments.
+    """
     args = parse_args()
 
     AAs = [
         'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H',
         'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W',
         'Y', 'V', 'X', 'Z', 'J', 'U', 'B',
-    ]
-    vocabulary = { aa: idx + 1 for idx, aa in enumerate(sorted(AAs)) }
+    ] # available amino acids
+
+    vocabulary = { aa: idx + 1 for idx, aa in enumerate(sorted(AAs)) } # vocabulary - amino acid to index map
 
     model, seqs = setup(args)
 

@@ -1,6 +1,13 @@
 from hmmlearn.hmm import MultinomialHMM
 
 def fit(seqs, n_components=1):
+    """
+    Wraps a MultinomialHMM.
+
+    Args:
+        seqs (list): (unused) list of sequences
+        n_components (int): number of states
+    """
     MultinomialHMM(
         n_components=n_components,
         startprob_prior=1.0,

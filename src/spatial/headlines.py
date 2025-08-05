@@ -4,6 +4,12 @@ np.random.seed(1)
 random.seed(1)
 
 def parse_args():
+    """
+    Configures analysis pipeline from CLI.
+
+    Returns:
+        argparse.Namespace
+    """
     import argparse
     parser = argparse.ArgumentParser(description='Headline analysis')
     parser.add_argument('model_name', type=str,
@@ -34,6 +40,16 @@ def parse_args():
     return args
 
 def parse_meta(timestamp, headline):
+    """
+    Creates a metadata dictionary for each headline.
+
+    Args:
+        timestamp (string): Data string in yyyymmdd format.
+        headline (string): Raw headline text
+
+    Returns:
+        metadata (dict): Metadata for headline
+    """
     return {
         'timestamp': timestamp,
         'date': dparse(timestamp),
@@ -42,6 +58,15 @@ def parse_meta(timestamp, headline):
     }
 
 def process(fnames):
+    """
+    Parses CSV files containing timestamped headlines and builds a sequence dictionary.
+
+    Args:
+        fnames (list[string]): List of headline filenames
+
+    Returns:
+        seqs (dict[tuple[string], list[dict]]): The sequence dictionary which maps tokenized headlines to metadata list
+    """
     seqs = {}
     for fname in fnames:
         with open(fname) as f:
@@ -55,6 +80,17 @@ def process(fnames):
     return seqs
 
 def split_seqs(seqs, split_method='random'):
+    """
+    Splits sequences into training and test sets.
+
+    Args:
+        seqs (dict[tuple[string], list[dict]]): the sequence dictionary
+        split_method (string): Method to split. Unused - always random split.
+    Returns:
+        Tuple:
+            train_seqs (dict[tuple[string], list[dict]]): Training sequences
+            val_seqs (dict[tuple[string], list[dict]]): Test sequences
+    """
     train_seqs, val_seqs = {}, {}
 
     new_cutoff = dparse('01-01-2016')
@@ -67,7 +103,7 @@ def split_seqs(seqs, split_method='random'):
             oldest_date = sorted(seq_dates)[0]
             if oldest_date >= new_cutoff:
                 val_seqs[seq] = seqs[seq]
-                continue
+                continue # if oldest date is after the new cutoff, store in val_seqs instead
         train_seqs[seq] = seqs[seq]
     tprint('{} train seqs, {} test seqs.'
            .format(len(train_seqs), len(val_seqs)))
@@ -75,6 +111,14 @@ def split_seqs(seqs, split_method='random'):
     return train_seqs, val_seqs
 
 def setup():
+    """
+    Prepares data and computes the vocabulary dictionary.
+
+    Returns:
+        Tuple:
+            seqs (dict[tuple[string], list[dict]]): the sequence dictionary
+            vocabulary (dict[string, int]): the vocabulary dictionary which maps words to indexes
+    """
     fnames = [ 'data/headlines/abcnews-date-text.csv' ]
     seqs = process(fnames)
     vocabulary = sorted({ word for seq in seqs for word in seq })
@@ -82,6 +126,15 @@ def setup():
     return seqs, vocabulary
 
 def interpret_clusters(adata):
+    """
+    Prints the most frequent headlines in each Louvain cluster.
+
+    Args:
+        adata (anndata.AnnData): Annotated data
+
+    Returns:
+        None
+    """
     clusters = sorted(set(adata.obs['louvain']))
     for cluster in clusters:
         tprint('Cluster {}'.format(cluster))
@@ -92,24 +145,42 @@ def interpret_clusters(adata):
         tprint('')
 
 def plot_umap(adata):
+    """
+    Generates and saves UMAP plots of headline embeddings.
+
+    Args:
+        adata (anndata.AnnData): Annotated data
+
+    Returns:
+        None
+    """
     sc.tl.umap(adata, min_dist=1.)
     sc.pl.umap(adata, color='louvain', save='_louvain.png')
     sc.pl.umap(adata, color='year', save='_year.png')
     sc.pl.umap(adata, color='date', save='_date.png')
 
 def analyze_embedding(args, model, seqs, vocabulary):
+    """
+    Embeds sequences, analyzes them via clustering, and visualizes them.
+
+    Args:
+        args (argparse.Namespace): Command line arguments
+        model (object): Model object
+        seqs (dict[tuple[string], list[dict]]): The sequence dictionary
+        vocabulary (dict[string, int]): the vocabulary dictionary
+    """
     seqs = embed_seqs(args, model, seqs, vocabulary,
                       use_cache=True)
 
     X, obs = [], {}
-    obs['n_seq'] = []
-    obs['seq'] = []
+    obs['n_seq'] = [] # number of times each sequence appears
+    obs['seq'] = [] # string form of each sequence
     for seq in seqs:
         meta = seqs[seq][0]
         X.append(meta['embedding'].mean(0))
         for key in meta:
             if key == 'embedding':
-                continue
+                continue # skip header
             if key not in obs:
                 obs[key] = []
             obs[key].append(Counter([
@@ -126,6 +197,7 @@ def analyze_embedding(args, model, seqs, vocabulary):
     sc.pp.neighbors(adata, n_neighbors=15, use_rep='X')
     sc.tl.louvain(adata, resolution=1.)
 
+    # plot and save data
     sc.set_figure_params(dpi_save=500)
     plot_umap(adata)
 
@@ -134,6 +206,20 @@ def analyze_embedding(args, model, seqs, vocabulary):
 def analyze_semantics(args, model, seq_to_mutate, vocabulary,
                       prob_cutoff=1e-4, n_most_probable=100, beta=1.,
                       plot_acquisition=False, verbose=False):
+    """
+    Performs semantic mutational analysis.
+
+    Args:
+        args (argparse.Namespace): Command line arguments
+        model (object): Model object
+        seq_to_mutate (list[string]): The sequence to mutate
+        vocabulary (dict[string, int]): the vocabulary dictionary
+        prob_cutoff (float, optional): Probability threshold for mutations
+        n_most_probable (int, optional): Number of most probable mutations to show
+        beta (float, optional): Beta parameter
+        plot_acquisition (bool, optional): Whether to plot an acquisition curve
+        verbose (bool, optional): Whether to use verbose setting
+    """
     seq_to_mutate = tuple(seq_to_mutate)
     seqs = { seq_to_mutate: [ {} ] }
     X_cat, lengths = featurize_seqs(seqs, vocabulary)
@@ -149,9 +235,12 @@ def analyze_semantics(args, model, seq_to_mutate, vocabulary,
     X = _split_and_pad(X_cat, lengths, model.seq_len_,
                        model.vocab_size_, False)[0]
     y_pred = model.model_.predict(X, batch_size=2500)
+
+    # confirm prediction are of the correct dimensions
     assert(y_pred.shape[0] == len(seq_to_mutate) + 2)
     assert(y_pred.shape[1] == len(vocabulary) + 3)
 
+    # create word position probability map [(word, position) -> probability]
     word_pos_prob = {}
     for i in range(len(seq_to_mutate)):
         for word in vocabulary:
@@ -179,11 +268,12 @@ def analyze_semantics(args, model, seq_to_mutate, vocabulary,
         seq_change[seq] = abs(base_embedding - embedding).sum()
 
     sorted_seqs = sorted(seq_prob.keys())
-    headlines = np.array([ ' '.join(seq) for seq in sorted_seqs ])
+    headlines = np.array([ ' '.join(seq) for seq in sorted_seqs ]) # flattened
     prob = np.array([ seq_prob[seq] for seq in sorted_seqs ])
     change = np.array([ seq_change[seq] for seq in sorted_seqs ])
     acquisition = ss.rankdata(change) + (beta * ss.rankdata(prob))
 
+    # plot acquisition graph
     if plot_acquisition:
         plt.figure()
         plt.scatter(np.log10(prob), change,
@@ -195,6 +285,7 @@ def analyze_semantics(args, model, seq_to_mutate, vocabulary,
         plt.close()
         exit()
 
+    # print statistics
     tprint('Original headline: ' + ' '.join(seq_to_mutate))
     tprint('Modifications:')
     for idx in np.argsort(-acquisition)[:n_most_probable]:
@@ -213,6 +304,9 @@ def analyze_semantics(args, model, seq_to_mutate, vocabulary,
         ))
 
 if __name__ == '__main__':
+    """
+    Runs training for headlines as specified by the command line arguments.
+    """
     args = parse_args()
 
     seqs, vocabulary = setup()

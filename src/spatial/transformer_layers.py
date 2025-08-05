@@ -2,10 +2,28 @@ import numpy as np
 import tensorflow as tf
 
 def get_angles(pos, i, d_model):
+    """
+    Generates a matrix of angles for positional encoding.
+
+    Args:
+        pos (np.ndarray): position indices
+        i (np.ndarray): embedding dimension indices
+        d_model (int): dimensionality of positional encoding
+
+    Returns:
+        angles (np.ndarray): angles for positional encoding
+    """
     angle_rates = 1 / np.power(10000, (2 * (i//2)) / np.float32(d_model))
     return pos * angle_rates
 
 def positional_encoding(position, d_model):
+    """
+    Generates a tensor for sinusoidal positional encoding.
+
+    Args:
+        position (int): maximum sequence length
+        d_model (int): embedding dimension
+    """
     angle_rads = get_angles(np.arange(position)[:, np.newaxis],
                             np.arange(d_model)[np.newaxis, :],
                             d_model)
@@ -17,7 +35,8 @@ def positional_encoding(position, d_model):
     return tf.cast(pos_encoding, dtype=tf.float32)
 
 def scaled_dot_product_attention(q, k, v, mask):
-    """Calculate the attention weights.
+    """
+    Calculate the attention weights.
     q, k, v must have matching leading dimensions.
     k, v must have matching penultimate dimension, i.e.: seq_len_k = seq_len_v.
     The mask has different shapes depending on its type(padding or look ahead)
@@ -31,7 +50,8 @@ def scaled_dot_product_attention(q, k, v, mask):
               to (..., seq_len_q, seq_len_k). Defaults to None.
 
     Returns:
-        output, attention_weights
+        output (tf.Tensor): attention-weighted sum over v
+        attention_weights (tf.Tensor): normalized weights
     """
 
     matmul_qk = tf.matmul(q, k, transpose_b=True)  # (..., seq_len_q, seq_len_k)
@@ -55,6 +75,16 @@ def scaled_dot_product_attention(q, k, v, mask):
 
 class MultiHeadAttention(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads):
+        """
+        Multi-head attention layer.
+
+        Args:
+            d_model (int): hidden dimension
+            num_heads (int): number of attention heads
+
+        Returns:
+            None
+        """
         super(MultiHeadAttention, self).__init__()
         self.num_heads = num_heads
         self.d_model = d_model
@@ -70,14 +100,35 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         self.dense = tf.keras.layers.Dense(d_model)
 
     def split_heads(self, x, batch_size):
-        """Split the last dimension into (num_heads, depth).
+        """
+        Split the last dimension into (num_heads, depth).
         Transpose the result such that the shape is
         (batch_size, num_heads, seq_len, depth)
+
+        Args:
+            x (tf.Tensor): input tensor
+            batch_size (int): batch size for each training batch
+
+        Returns:
+            x (tf.Tensor): output tensor with dimensions (batch_size, num_heads, seq_len, depth)
         """
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
         return tf.transpose(x, perm=[0, 2, 1, 3])
 
     def call(self, v, k, q, mask):
+        """
+        Apply multi-head attention.
+
+        Args:
+            v (tf.Tensor): value input tensor, shape (batch_size, seq_len, d_model)
+            k (tf.Tensor): key input tensor, shape (batch_size, seq_len, d_model)
+            q (tf.Tensor): query input tensor, shape (batch_size, seq_len, d_model)
+            mask (tf.Tensor): mask tensor
+
+        Returns:
+            output (tf.Tensor): output tensor, shape (batch_size, seq_len_q, d_model)
+            attention_weights (tf.Tensor): normalized weights
+        """
         batch_size = tf.shape(q)[0]
 
         q = self.wq(q)  # (batch_size, seq_len, d_model)
@@ -107,6 +158,13 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         return output, attention_weights
 
 def point_wise_feed_forward_network(d_model, dff):
+    """
+    Provides a point-wise feed forward layer.
+
+    Args:
+        d_model (int): input/output dimension
+        dff (int): inner-layer dimension
+    """
     return tf.keras.Sequential([
         tf.keras.layers.Dense(dff, activation='relu'),
         tf.keras.layers.Dense(d_model)
@@ -114,6 +172,19 @@ def point_wise_feed_forward_network(d_model, dff):
 
 class EncoderLayer(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads, dff, rate=0.1, **kwargs):
+        """
+        Encoder layer.
+
+        Args:
+            d_model (int): input/output dimension
+            num_heads (int): number of attention heads
+            dff (int): inner layer dimension
+            rate (float): dropout rate
+            **kwargs: keyword arguments to be passed to super(EncoderLayer, self).__init__()
+
+        Returns:
+            None
+        """
         super(EncoderLayer, self).__init__(**kwargs)
 
         self.mha = MultiHeadAttention(d_model, num_heads)
@@ -126,6 +197,16 @@ class EncoderLayer(tf.keras.layers.Layer):
         self.dropout2 = tf.keras.layers.Dropout(rate)
 
     def call(self, x, mask):
+        """
+        Applies multi-head self-attention and feed-forward attention.
+
+        Args:
+            x (tf.Tensor): input tensor, shape (batch_size, input_seq_len, d_model)
+            mask (tf.Tensor): mask tensor
+
+        Returns:
+            output (tf.Tensor): output tensor, shape (batch_size, input_seq_len, d_model)
+        """
         # (batch_size, input_seq_len, d_model)
         attn_output, _ = self.mha(x, x, x, mask)
         attn_output = self.dropout1(attn_output)
@@ -142,6 +223,19 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 class DecoderLayer(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads, dff, rate=0.1, **kwargs):
+        """
+        Intializes the decoder layer.
+
+        Args:
+            d_model (int): input/output dimension
+            num_heads (int): number of attention heads
+            dff (int): inner layer dimension
+            rate (float): dropout rate
+            **kwargs: keyword arguments to be passed to super(DecoderLayer, self).__init__()
+
+        Returns:
+            None
+        """
         super(DecoderLayer, self).__init__(**kwargs)
 
         self.mha1 = MultiHeadAttention(d_model, num_heads)
@@ -159,6 +253,20 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 
     def call(self, x, enc_output, look_ahead_mask, padding_mask):
+        """
+        Applies self-attention, cross-attention with enc_output and feed-forward attention.
+
+        Args:
+            x (tf.Tensor): input tensor, shape (batch_size, target_seq_len, d_model)
+            enc_output (tf.Tensor): output from encoder, shape (batch_size, d_model)
+            look_ahead_mask (tf.Tensor): mask tensor
+            padding_mask (tf.Tensor): masks padding in output
+
+        Returns:
+            output: (tf.Tensor): output tensor, shape (batch_size, target_seq_len, d_model)
+            attn_weights_block_1 (tf.Tensor): self-attention weights
+            attn_weights_block_2 (tf.Tensor): cross-attention weights
+        """
         # enc_output.shape == (batch_size, input_seq_len, d_model)
 
         # (batch_size, target_seq_len, d_model)
@@ -182,6 +290,22 @@ class DecoderLayer(tf.keras.layers.Layer):
 class Encoder(tf.keras.layers.Layer):
     def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size,
                  maximum_position_encoding, rate=0.1, **kwargs):
+        """
+        Full encoder
+
+        Args:
+            num_layers (int): number of layers
+            d_model (int): input dimension
+            num_heads (int): number of attention heads
+            dff (int): inner layer dimension
+            input_vocab_size (int): vocabulary size for embedding
+            maximum_position_encoding (int): maximum sequence length
+            rate (float): dropout rate
+            **kwargs: keyword arguments to be passed to super(Encoder, self).__init__()
+
+        Returns:
+            None
+        """
         super(Encoder, self).__init__(**kwargs)
 
         self.d_model = d_model
@@ -198,7 +322,16 @@ class Encoder(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(rate)
 
     def call(self, x, mask):
+        """
+        Implements the full transformer encoder
 
+        Args:
+            x (tf.Tensor): input tensor, shape (batch_size, input_seq_len, d_model)
+            mask (tf.Tensor): mask tensor
+
+        Returns:
+            output: (tf.Tensor): encoded output tensor, shape (batch_size, input_seq_len, d_model)
+        """
         seq_len = tf.shape(x)[1]
 
         # Add embedding and position encoding.
@@ -217,6 +350,22 @@ class Decoder(tf.keras.layers.Layer):
     def __init__(self, num_layers, d_model, num_heads, dff,
                  target_vocab_size, maximum_position_encoding,
                  rate=0.1, **kwargs):
+        """
+        Full decoder.
+
+        Args:
+            num_layers (int): number of layers
+            d_model (int): input dimension
+            num_heads (int): number of attention heads
+            dff (int): inner layer dimension
+            target_vocab_size (int): vocabulary size for embedding
+            maximum_position_encoding (int): maximum sequence length
+            rate (float): dropout rate
+            **kwargs: keyword arguments to be passed to super(Decoder, self).__init__()
+
+        Returns:
+            None
+        """
         super(Decoder, self).__init__(**kwargs)
 
         self.d_model = d_model
@@ -232,7 +381,19 @@ class Decoder(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(rate)
 
     def call(self, x, enc_output, look_ahead_mask, padding_mask):
+        """
+        Implements the full transformer decoder
 
+        Args:
+            x (tf.Tensor): input tensor, shape (batch_size, target_seq_len, d_model)
+            enc_output (tf.Tensor): output from encoder, shape (batch_size, input_seq_len, d_model)
+            look_ahead_mask (tf.Tensor): mask tensor
+            padding_mask (tf.Tensor): masks padding in output
+
+        Returns:
+            output: (tf.Tensor): output tensor, shape (batch_size, target_seq_len, d_model)
+            attention_weights (tf.Tensor): attention weights
+        """
         seq_len = tf.shape(x)[1]
         attention_weights = {}
 
@@ -267,6 +428,21 @@ class Transformer(tf.keras.Model):
             dropout_rate=0.1,
             **kwargs
     ):
+        """
+        Transformer model.
+
+        Args:
+            input_vocab_size (int): input vocabulary size
+            target_vocab_size (int): target output vocabulary size
+            seq_len_input (int): input sequence length
+            seq_len_target (int): target output sequence length
+            num_layers (int): number of layers
+            d_model (int): input dimension
+            num_heads (int): number of attention heads
+            dff (int): inner layer dimension
+            dropout_rate (float): dropout rate
+            **kwargs: keyword arguments to be passed to super(Transformer, self).__init__()
+        """
         super(Transformer, self).__init__(**kwargs)
 
         self.encoder = Encoder(
@@ -281,6 +457,19 @@ class Transformer(tf.keras.Model):
 
     def call(self, inp, tar, enc_padding_mask,
              look_ahead_mask, dec_padding_mask):
+        """
+        Implements the transformer model.
+
+        Args:
+            inp (tf.Tensor): input tensor
+            tar (tf.Tensor): target tensor
+            enc_padding_mask (tf.Tensor): encoding padding mask
+            look_ahead_mask (tf.Tensor): look ahead mask
+
+        Returns:
+            final_output (tf.Tensor): output tensor, shape (batch_size, tar_seq_len, target_vocab_size)
+            attention_weights (tf.Tensor): attention weights
+        """
 
         # (batch_size, inp_seq_len, d_model)
         enc_output = self.encoder(inp, enc_padding_mask)
@@ -296,6 +485,17 @@ class Transformer(tf.keras.Model):
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000, **kwargs):
+        """
+        Custom learning rate schedule for optimization.
+
+        Args:
+            d_model (int): input dimension
+            warmup_steps (int): number of warmup steps
+            **kwargs: keyword arguments to be passed to super(CustomSchedule, self).__init__()
+
+        Returns:
+            None
+        """
         super(CustomSchedule, self).__init__(**kwargs)
 
         self.d_model = d_model
@@ -304,6 +504,15 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         self.warmup_steps = warmup_steps
 
     def __call__(self, step):
+        """
+        Implements the learning rate schedule
+
+        Args:
+            step (int): current step
+
+        Returns:
+            lr (tf.Tensor): learning rate
+        """
         arg1 = tf.math.rsqrt(step)
         arg2 = step * (self.warmup_steps ** -1.5)
 

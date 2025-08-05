@@ -26,6 +26,12 @@ from sklearn.metrics import roc_curve, auc
 def repackage_hidden(h):
     """
     Wraps hidden states in new Tensors, to detach them from their history.
+
+    Args:
+        h (tensor): hidden state
+
+    Returns:
+        detached (tensor | tuple)
     """
     if isinstance(h, torch.Tensor):
         return h.detach()
@@ -37,6 +43,17 @@ def plot_training_history(loss, val_loss, acc, val_acc, fscore, val_fscore):
     """
     Plots the loss and accuracy for training and validation over epochs.
     Also plots the logits for a small batch over epochs.
+
+    Args:
+        loss (tensor): training loss
+        val_loss (tensor): validation loss
+        acc (tensor): training accuracy
+        val_acc (tensor): validation accuracy
+        fscore (tensor): training F-score
+        val_fscore (tensor): validation F-score
+
+    Returns:
+        None
     """
     plt.style.use('ggplot')
 
@@ -68,6 +85,14 @@ def plot_training_history(loss, val_loss, acc, val_acc, fscore, val_fscore):
 def plot_attention(weights):
     """
     Plots attention weights in a grid.
+
+    Args:
+        weights (tensor): attention weights
+
+    Returns:
+        None
+
+    Output File: ./reports/figures/attention_weights.png
     """
     cax = plt.matshow(weights.numpy(), cmap='bone')
     plt.colorbar(cax)
@@ -85,6 +110,12 @@ def plot_attention(weights):
 def predictions_from_output(scores):
     """
     Maps logits to class predictions.
+
+    Args:
+        scores (tensor): logits
+
+    Returns:
+        predictions (tensor): class predictions
     """
     prob = F.softmax(scores, dim=1)
     _, predictions = prob.topk(1)
@@ -93,7 +124,13 @@ def predictions_from_output(scores):
 
 def calculate_prob(scores):
     """
-    Maps logits to class predictions.
+    Maps logits to prediction probabilities.
+
+    Args:
+        scores (tensor): logits
+
+    Returns:
+        pred_probe (tensor): prediction probabilities
     """
     prob = F.softmax(scores, dim=1)
     pred_probe, _ = prob.topk(1)
@@ -104,17 +141,29 @@ def verify_model(model, X, Y, batch_size):
     """
     Checks the loss at initialization of the model and asserts that the
     training examples in a batch aren't mixed together by backpropagating.
+
+    Args:
+        model (nn.Module): Instance of a model defined in models.py
+        X (tensor): training examples
+        Y (tensor): training labels
+        batch_size (int): batch size
+
+    Returns:
+        None
     """
+
     print('Sanity checks:')
     criterion = torch.nn.CrossEntropyLoss()
     scores, _ = model(X, model.init_hidden(Y.shape[0]))
     print(' Loss @ init %.3f, expected ~%.3f' % (criterion(scores, Y).item(), -math.log(1 / model.output_dim)))
 
+    # split into mini batches
     mini_batch_X = X[:, :batch_size, :]
     mini_batch_X.requires_grad_()
     criterion = torch.nn.MSELoss()
     scores, _ = model(mini_batch_X, model.init_hidden(batch_size))
 
+    # backward propagation
     non_zero_idx = 1
     perfect_scores = [[0, 0] for i in range(batch_size)]
     not_perfect_scores = [[1, 1] if i == non_zero_idx else [0, 0] for i in range(batch_size)]
@@ -124,14 +173,15 @@ def verify_model(model, X, Y, batch_size):
     loss = criterion(scores, Y_perfect)
     loss.backward()
 
+    # asserts for any non-zero gradient
     zero_tensor = torch.FloatTensor([0] * X.shape[2])
     for i in range(mini_batch_X.shape[0]):
         for j in range(mini_batch_X.shape[1]):
             if sum(mini_batch_X.grad[i, j] != zero_tensor):
                 assert j == non_zero_idx, 'Input with loss set to zero has non-zero gradient.'
 
-    mini_batch_X.detach()
-    print(' Backpropagated dependencies OK')
+    mini_batch_X.detach() # attempts detach
+    print(' Backpropagated dependencies OK') # all checks passed
 
 
 def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_test, show_attention, cell_type):
@@ -143,16 +193,32 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
     learning rate decides how much the weights are updated each iteration.
     batch_size decides how many examples are in each mini batch.
     show_attention decides if attention weights are plotted.
+
+    Args:
+       model (nn.Module): Instance of a model defined in models.py
+       verify (bool): whether to enable sanity checks
+       epochs (int): number of training epochs
+       learning_rate (float): learning rate
+       batch_size (int): batch size
+       X (tensor): training examples
+       Y (tensor): training labels
+       X_test (tensor): test examples
+       Y_test (tensor): test labels
+       show_attention (bool): whether attention weights are plotted (unused)
+       cell_type (string): type of cell (LSTM or GRU)
+
+    Returns:
+        None
     """
-    print_interval = 10
+    print_interval = 10 # number of epochs to space between each report
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = torch.nn.CrossEntropyLoss() # evaluation criterion
     num_of_examples = X.shape[1]
     num_of_batches = math.floor(num_of_examples / batch_size)
 
     if verify:
-        verify_model(model, X, Y, batch_size)
+        verify_model(model, X, Y, batch_size) # verify if relevant setting is on
     all_losses = []
     all_val_losses = []
     all_accs = []
@@ -163,7 +229,7 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
     all_val_fscores = []
     all_mccs = []
 
-    best_val_loss = 100000000.0
+    best_val_loss = 100000000.0 # effects as infinity
     best_val_acc = 0.0
     best_val_pre = 0.0
     best_val_rec = 0.0
@@ -183,6 +249,7 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
     plot_batch_scores = []
 
     start_time = time.time()
+    # run training for each epoch
     for epoch in range(epochs):
         model.train()
         running_loss = 0
@@ -201,6 +268,7 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
         for count in range(0, num_of_examples - batch_size + 1, batch_size):
             repackage_hidden(hidden)
 
+            # separate data specific to batch
             X_batch = X[:, count:count + batch_size, :]
             Y_batch = Y[count:count + batch_size]
 
@@ -213,10 +281,13 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
             loss.backward()
             optimizer.step()
 
+            # make predictions and obtain confusion matrix
             predictions = predictions_from_output(scores)
 
             conf_matrix = validation.get_confusion_matrix(Y_batch, predictions)
             TP, FP, FN, TN = conf_matrix[0][0], conf_matrix[0][1], conf_matrix[1][0], conf_matrix[1][1]
+
+            # update each statistic for this batch
             running_acc += TP + TN
             running_pre += TP
             running_pre_total += TP + FP
@@ -229,11 +300,12 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
                 running_mcc_denominator += math.sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
             running_loss += loss.item()
 
+        # append calculated data to the relevant lists
         elapsed_time = time.time() - start_time
         epoch_acc = running_acc / Y.shape[0]
         all_accs.append(epoch_acc)
 
-        if running_pre_total == 0:
+        if running_pre_total == 0: # avoid division by 0
             epoch_pre = 0
         else:
             epoch_pre = running_pre / running_pre_total
@@ -260,6 +332,7 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
         epoch_loss = running_loss / num_of_batches
         all_losses.append(epoch_loss)
 
+        # evaluation
         with torch.no_grad():
             model.eval()
             test_scores, _ = model(X_test, model.init_hidden(Y_test.shape[0]))
@@ -274,6 +347,8 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
             all_val_losses.append(val_loss)
             all_val_accs.append(val_acc)
             all_val_fscores.append(fscore)
+
+            # update best statistics where applicable
             if val_acc>best_val_acc:
                 best_val_loss = val_loss
                 best_val_acc = val_acc
@@ -286,6 +361,7 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
             # plot_scores, _ = model(X_plot_batch, model.init_hidden(Y_plot_batch.shape[0]))
             # plot_batch_scores.append(plot_scores)
 
+        # print epoch training data at relevant intervals
         if (epoch + 1) % print_interval == 0:
             print('Epoch %d Time %s' % (epoch, utils.get_time_string(elapsed_time)))
             print('T_loss %.3f\tT_acc %.3f\tT_pre %.3f\tT_rec %.3f\tT_fscore %.3f\tT_mcc %.3f' % (
@@ -293,6 +369,8 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
             print('V_loss %.3f\tV_acc %.3f\tV_pre %.3f\tV_rec %.3f\tV_fscore %.3f\tV_mcc %.3f' % (
             val_loss, val_acc, precision, recall, fscore, mcc))
     plot_training_history(all_losses, all_val_losses, all_accs, all_val_accs, all_fscores, all_val_fscores)
+
+    # print best results
     print('Best results: %d \n V_loss %.3f\tV_acc %.3f\tV_pre %.3f\tV_rec %.3f\tV_fscore %.3f\tV_mcc %.3f' % (
         best_epoch_index, best_val_loss, best_val_acc, best_val_pre, best_val_rec, best_val_fscore, best_val_mcc))
     # roc curve
@@ -322,6 +400,23 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
 
 
 def svm_baseline(X, Y, X_test, Y_test, method=None):
+    """
+    Trains and evaluates the results for the Support Vector Machine (SVM) classifier.
+
+    Args:
+        X (tensor): The feature vector for the training data set.
+        Y (tensor): The target vector for the training data set.
+        X_test (tensor): The feature vector for the test data set, used for evaluation.
+        Y_test (tensor): The target vector for the test data set, used for evaluation.
+        method (string): Optional. If provided, used as a file-prefix for <method>_SVM.txt to which the results will be saved.
+
+    Returns:
+        None
+
+    Output file: ./reports/results/{method}_SVM.txt
+    """
+
+
     clf = SVC(gamma='auto', class_weight='balanced', probability=True).fit(X, Y)
     train_acc = accuracy_score(Y, clf.predict(X))
     train_pre = precision_score(Y, clf.predict(X))
@@ -329,6 +424,7 @@ def svm_baseline(X, Y, X_test, Y_test, method=None):
     train_fscore = f1_score(Y, clf.predict(X))
     train_mcc = matthews_corrcoef(Y, clf.predict(X))
 
+    # Report evaluation statistics
     Y_pred = clf.predict(X_test)
     precision, recall, fscore, mcc, val_acc = validation.evaluate(Y_test, Y_pred)
     print('SVM baseline:')
@@ -349,7 +445,7 @@ def svm_baseline(X, Y, X_test, Y_test, method=None):
             f.write(' V_F1-score:\t%.3f\n' % fscore)
             f.write(' V_Matthews CC:\t%.3f\n\n' % mcc)
 
-    # roc curve
+    # Plot an ROC curve
     y_pred_roc = clf.predict_proba(X_test)[:, 1]
     fpr_rt_svm, tpr_rt_svm, _ = roc_curve(Y_test, y_pred_roc)
     print(auc(fpr_rt_svm, tpr_rt_svm))
@@ -360,6 +456,23 @@ def svm_baseline(X, Y, X_test, Y_test, method=None):
 
 
 def random_forest_baseline(X, Y, X_test, Y_test, method=None):
+    """
+    Trains, evaluates and reports the results for the Random Forest (RF) classifier.
+
+    Args:
+        X (tensor): The feature vector for the training data set.
+        Y (tensor): The target vector for the training data set.
+        X_test (tensor): The feature vector for the test data set, used for evaluation.
+        Y_test (tensor): The target vector for the test data set, used for evaluation.
+        method (string): Optional. If provided, used as a file-prefix for <method>_RF.txt
+
+    Returns:
+        None
+
+    Output file: ./reports/results/{method}_RF.txt
+    """
+
+    # Calculate the model results and evaluation scores
     clf = ensemble.RandomForestClassifier().fit(X, Y)
     train_acc = accuracy_score(Y, clf.predict(X))
     train_pre = precision_score(Y, clf.predict(X))
@@ -367,6 +480,7 @@ def random_forest_baseline(X, Y, X_test, Y_test, method=None):
     train_fscore = f1_score(Y, clf.predict(X))
     train_mcc = matthews_corrcoef(Y, clf.predict(X))
 
+    # Report evaluation statistics
     Y_pred = clf.predict(X_test)
     precision, recall, fscore, mcc, val_acc = validation.evaluate(Y_test, Y_pred)
     print('Rrandom Forest baseline:')
@@ -387,7 +501,7 @@ def random_forest_baseline(X, Y, X_test, Y_test, method=None):
             f.write(' V_F1-score:\t%.3f\n' % fscore)
             f.write(' V_Matthews CC:\t%.3f\n\n' % mcc)
 
-    # roc curve
+    # Plot an ROC curve
     y_pred_roc = clf.predict_proba(X_test)[:, 1]
     fpr_rt_rf, tpr_rt_rf, _ = roc_curve(Y_test, y_pred_roc)
     plt.figure(1)
@@ -398,6 +512,21 @@ def random_forest_baseline(X, Y, X_test, Y_test, method=None):
 
 
 def knn_baseline(X, Y, X_test, Y_test, method=None):
+    """
+    Trains, evaluates and reports the results for the K-Neighbors Classifier.
+
+    Args:
+        X (tensor): The feature vector for the training data set.
+        Y (tensor): The target vector for the training data set.
+        X_test (tensor): The feature vector for the test data set, used for evaluation.
+        Y_test (tensor): The target vector for the test data set, used for evaluation.
+        method (string): Optional. If provided, used as a file-prefix for <method>_SVM.txt
+
+    Returns:
+        None
+
+    Output file: ./reports/results/{method}_SVM.txt
+    """
     clf = KNeighborsClassifier().fit(X, Y)
     train_acc = accuracy_score(Y, clf.predict(X))
     train_pre = precision_score(Y, clf.predict(X))
@@ -405,6 +534,7 @@ def knn_baseline(X, Y, X_test, Y_test, method=None):
     train_fscore = f1_score(Y, clf.predict(X))
     train_mcc = matthews_corrcoef(Y, clf.predict(X))
 
+    # Report evaluation statistics
     Y_pred = clf.predict(X_test)
     precision, recall, fscore, mcc, val_acc = validation.evaluate(Y_test, Y_pred)
     print('knn baseline:')
@@ -425,7 +555,7 @@ def knn_baseline(X, Y, X_test, Y_test, method=None):
             f.write(' V_F1-score:\t%.3f\n' % fscore)
             f.write(' V_Matthews CC:\t%.3f\n\n' % mcc)
 
-    # roc curve
+    # Plots ROC curve
     y_pred_roc = clf.predict_proba(X_test)[:, 1]
     fpr_rt_knn, tpr_rt_knn, _ = roc_curve(Y_test, y_pred_roc)
     print(auc(fpr_rt_knn, tpr_rt_knn))
@@ -437,6 +567,19 @@ def knn_baseline(X, Y, X_test, Y_test, method=None):
 
 
 def bayes_baseline(X, Y, X_test, Y_test, method=None):
+    """
+    Trains, evaluates and reports the results for the Bayesian Neural Network Classifier.
+
+    Args:
+        X (tensor): The feature vector for the training data set.
+        Y (tensor): The target vector for the training data set, used for evaluation.
+        X_test (tensor): The feature vector for the test data set, used for evaluation.
+        Y_test (tensor): The target vector for the test data set, used for evaluation.
+        method (string): Unused
+
+    Returns:
+        None
+    """
     clf = GaussianNB().fit(X, Y)
     train_acc = accuracy_score(Y, clf.predict(X))
     train_pre = precision_score(Y, clf.predict(X))
@@ -490,6 +633,19 @@ def bayes_baseline(X, Y, X_test, Y_test, method=None):
 
 
 def logistic_regression_baseline(X, Y, X_test, Y_test, method=None):
+    """
+        Trains and evaluates the results for the Logistic Regression (LR) classifier.
+
+        Args:
+            X (tensor): The feature vector for the training data set.
+            Y (tensor): The target vector for the training data set, used for evaluation.
+            X_test (tensor): The feature vector for the test data set, used for evaluation.
+            Y_test (tensor): The target vector for the test data set, used for evaluation.
+            method (string): Unused
+
+        Returns:
+            None
+    """
     clf = LogisticRegression(random_state=0).fit(X, Y)
     train_acc = accuracy_score(Y, clf.predict(X))
     train_pre = precision_score(Y, clf.predict(X))
@@ -497,6 +653,7 @@ def logistic_regression_baseline(X, Y, X_test, Y_test, method=None):
     train_fscore = f1_score(Y, clf.predict(X))
     train_mcc = matthews_corrcoef(Y, clf.predict(X))
 
+    # Report evaluation statistics
     Y_pred = clf.predict(X_test)
     precision, recall, fscore, mcc, val_acc = validation.evaluate(Y_test, Y_pred)
     print('Logistic regression baseline:')
@@ -504,7 +661,8 @@ def logistic_regression_baseline(X, Y, X_test, Y_test, method=None):
           % (train_acc, train_pre, train_rec, train_fscore, train_mcc))
     print('V_acc  %.3f\tV_pre %.3f\tV_rec %.3f\tV_fscore %.3f\tV_mcc %.3f'
           % (val_acc, precision, recall, fscore, mcc))
-    # roc curve
+
+    # Plotting an ROC curve.
     y_pred_roc = clf.predict_proba(X_test)[:, 1]
     fpr_rt_lr, tpr_rt_lr, _ = roc_curve(Y_test, y_pred_roc)
     print(auc(fpr_rt_lr, tpr_rt_lr))

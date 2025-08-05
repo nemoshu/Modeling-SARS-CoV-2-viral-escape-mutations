@@ -9,10 +9,29 @@ from pattern3.en import conjugate, singularize
 info_prefix = 'Original headline: '
 
 def extract_content(line):
+    """
+    Utility to extract information from a line in headline log file.
+
+    Args:
+        line (string): Headline log line to parse
+
+    Returns:
+        content (string): Headline parsed from the line
+    """
     return (': '.join(' | '.join(line.split(' | ')[1:])
                       .strip().split(': ')[:-1]))
 
 def read_headline_info(f, orig_line):
+    """
+    Builds a dataset from a headline log file.
+
+    Args:
+        f (file object): The file to read from
+        orig_line (string): The line beginning with the info prefix 'Original headline: '
+
+    Returns:
+        info (dict[string, string]: A dictionary containing headline with moderate, least and most change
+    """
     orig = orig_line[len(info_prefix):]
 
     info = { 'orig': orig }
@@ -38,6 +57,16 @@ def read_headline_info(f, orig_line):
     return info
 
 def find_diff(headline1, headline2):
+    """
+    Identifies the first index at which two headlines differ.
+
+    Args:
+        headline1 (string): The first tokenized headline
+        headline2 (string): The second tokenized headline
+
+    Returns:
+        idx (int | None): The index of the first headline, None if no difference found
+    """
     for idx, (word1, word2) in enumerate(
             zip(headline1.split(' '), headline2.split(' '))):
         if word1 != word2:
@@ -45,6 +74,16 @@ def find_diff(headline1, headline2):
 
 flair_pos = None
 def pos_tag(sentence, backend='nltk'):
+    """
+    Generates POS tags for tokens.
+
+    Args:
+        sentence (string): raw headline sentence
+        backend (string): 'nltk' or 'flair'
+
+    Returns:
+        parsed(list[tuple[str, str]]): List of tuples of tokens and their POS tags
+    """
     global flair_pos
 
     if backend == 'nltk':
@@ -69,6 +108,16 @@ def pos_tag(sentence, backend='nltk'):
         raise ValueError('Invalid backend: {}'.format(backend))
 
 def find_semantic_distance(wordtag1, wordtag2):
+    """
+    Evaluates the semantic closeness of edits.
+
+    Args:
+        wordtag1 (Tuple[str, str]): The first word and POS pair
+        wordtag2 (Tuple[str, str]): The second word and POS pair
+    Returns:
+        tuple[float, float]: The semantic distance between the two words, in path similarity and Wu-Palmer similarity
+        None if the semantic distance can't be computed
+    """
     word1, tag1 = wordtag1
     word2, tag2 = wordtag2
 
@@ -103,11 +152,29 @@ def find_semantic_distance(wordtag1, wordtag2):
     return None
 
 def part_of_speech(infos, backend='nltk', n_most=10):
+    """
+    Performs part of speech analysis and prints out results for:
+
+    - Categories
+    - Most common words/POS changes
+    - Number of POS changes and statics
+    - Semantic similarity measures (if using nltk)
+    - t-tests
+
+    Args:
+        infos (list[dict]): a compiled list of headline info dictionaries from read_headline_info()
+        backend (string): POS tagger backend. Defaults to 'nltk'.
+        n_most (int): Number of most common words/POS changes to return. Defaults to 10.
+
+    Returns:
+        None
+    """
     categories = [ 'mod', 'least', 'most' ]
 
+    # initialize data containers
     pos_diff_change = { category: [] for category in categories }
-    n_pos_change = { category: [] for category in categories }
-    pct_pos_change = { category: [] for category in categories }
+    n_pos_change = { category: [] for category in categories } # count of POS tag changes
+    pct_pos_change = { category: [] for category in categories } # percentage of POS tage changes
 
     if backend == 'nltk':
         wordnet_path_dist = { category: [] for category in categories }
@@ -115,11 +182,11 @@ def part_of_speech(infos, backend='nltk', n_most=10):
 
     for info in infos:
         for category in categories:
-            diff_idx = find_diff(info['orig'], info[category])
+            diff_idx = find_diff(info['orig'], info[category]) # first difference
 
             pos_orig = pos_tag(info['orig'], backend=backend)
             pos_category = pos_tag(info[category], backend=backend)
-            assert(len(pos_orig) == len(pos_category))
+            assert(len(pos_orig) == len(pos_category)) # lengths should match for comparison
 
             word_orig = pos_orig[diff_idx]
             word_cat = pos_category[diff_idx]
@@ -144,6 +211,7 @@ def part_of_speech(infos, backend='nltk', n_most=10):
                     wordnet_path_dist[category].append(path_dist)
                     wordnet_wup_dist[category].append(wup_dist)
 
+    # print out statistics
     for category in categories:
         print('Category: {}'.format(category))
 
@@ -194,12 +262,22 @@ def part_of_speech(infos, backend='nltk', n_most=10):
                            np.array(wordnet_wup_dist['least'])))
 
 def train_topic_model(seqs, vocabulary, n_components=10):
+    """
+    Trains a topic model.
+
+    Args:
+        seqs (dict[tuple[string], list[dict]]): dictionary mapping headline to tokenized word list
+        vocabulary (dict[str, int]): a token-index mapping
+        n_components (int): number of topics for the LDA model
+    Returns:
+        LDA model trained on the sequences
+    """
     seqs = np.array([ ' '.join(seq) for seq in sorted(seqs.keys()) ])
 
     X = dok_matrix((len(seqs), len(vocabulary)))
     for seq_idx, seq in enumerate(seqs):
         for word in seq.split(' '):
-            X[seq_idx, vocabulary[word] - 1] += 1
+            X[seq_idx, vocabulary[word] - 1] += 1 # count presence
     X = csr_matrix(X)
 
     from sklearn.decomposition import LatentDirichletAllocation as LDA
@@ -209,12 +287,26 @@ def train_topic_model(seqs, vocabulary, n_components=10):
     return model
 
 def lda_topic_model(infos, n_components=10):
+    """
+    Workflow to create and train LDA topic model:
+    - Loads tokenized data
+    - Trains LDA model
+    - Computes topic assignments and prints the number of headlines which has switched topics
+
+    Args:
+        infos (List[Dict]):
+        n_components (int): number of topics for the LDA model
+
+    Returns:
+        None
+    """
     from headlines import setup
-    seqs, vocabulary = setup()
+    seqs, vocabulary = setup() # load tokenized data
 
     topic_model = train_topic_model(seqs, vocabulary,
-                                    n_components=n_components)
+                                    n_components=n_components) # train model
 
+    # compute topic assignments
     X_orig = dok_matrix((len(infos), len(vocabulary)))
     for info_idx, info in enumerate(infos):
         for word in info['orig'].split(' '):
@@ -222,6 +314,7 @@ def lda_topic_model(infos, n_components=10):
     X_orig_topics = topic_model.transform(X_orig)
     topic_orig = np.argmax(X_orig_topics, axis=1)
 
+    # print statistics
     categories = [ 'mod', 'least', 'most' ]
     for category in categories:
         tprint('Category: {}'.format(category))
@@ -239,6 +332,9 @@ def lda_topic_model(infos, n_components=10):
 
 
 if __name__ == '__main__':
+    """
+    Parses and analyzes headline models, including part-of-speech analysis.
+    """
     log_fname = sys.argv[1]
 
     infos = []

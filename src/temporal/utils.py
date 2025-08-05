@@ -1,5 +1,7 @@
 import math
 import ast
+
+import cluster
 import pandas as pd
 import numpy as np
 import make_dataset
@@ -9,9 +11,28 @@ import random
 
 def read_and_process_to_trigram_vecs(data_files, subtype, sample_size=100, test_split=0.0, squeeze=True,
                                      extract_epitopes=False):
+    """
+    Reads viral strain data, splits into training/testing sets, and processes it into trigram vectors.
+
+    Args:
+        data_files (list): list of filenames containing strain data
+        subtype (str): viral subtype to specify the dataset
+        sample_size (int): number of samples to use
+        test_split (float): fraction of data to include in test set
+        squeeze (bool): whether to squeeze trigrams
+        extract_epitopes (bool): whether to extract epitopes only
+
+    Returns:
+        train_trigram_vecs (list): trigram feature vectors for training data
+        test_trigram_vecs (list): trigram feature vectors for test data
+        train_trigram_idxs (list): index mapping of training trigrams
+        test_trigram_idxs (list): index mapping of test trigrams
+    """
+
     data_path = make_dataset.subtype_selection(subtype)
     strains_by_year = make_dataset.read_strains_from(data_files, data_path)
 
+    # split into training / test sets
     train_strains_by_year, test_strains_by_year = make_dataset.train_test_split_strains(strains_by_year, test_split)
     training_samples = int(math.floor(sample_size * (1 - test_split)))
     test_samples = sample_size - training_samples
@@ -29,7 +50,16 @@ def read_and_process_to_trigram_vecs(data_files, subtype, sample_size=100, test_
 
 
 def process_years(strains_by_year, data_path, squeeze=True, extract_epitopes=False):
-    if (len(strains_by_year[0]) == 0): return [], []
+    """
+    Process yearly strains into trigram vectors.
+
+    Args:
+        strains_by_year (list[list]): list of yearly strains
+        data_path (str): path to trigram vector data
+        squeeze (bool): whether to squeeze trigrams
+        extract_epitopes (bool): whether to extract epitopes only
+    """
+    if (len(strains_by_year[0]) == 0): return [], [] # empty year
     trigram_to_idx, trigram_vecs_data = make_dataset.read_trigram_vecs(data_path)
     trigrams_by_year = build_features.split_to_trigrams(strains_by_year)
 
@@ -46,7 +76,7 @@ def process_years(strains_by_year, data_path, squeeze=True, extract_epitopes=Fal
         epitope_positions = epitope_a + epitope_b + epitope_c + epitope_d + epitope_e
         epitope_positions.sort()
 
-        trigrams_by_year = build_features.extract_positions_by_year(epitope_positions, trigrams_by_year)
+        trigrams_by_year = build_features.extract_positions_by_year(epitope_positions, trigrams_by_year) # extract epitope positions only
 
     if squeeze:
         trigrams_by_year = build_features.squeeze_trigrams(trigrams_by_year)
@@ -59,6 +89,18 @@ def process_years(strains_by_year, data_path, squeeze=True, extract_epitopes=Fal
 
 
 def cluster_years(strains_by_year, data_path, method='DBSCAN'):
+    """
+    Cluster viral strains by year.
+
+    Args:
+        strains_by_year (list[list]): list of strains in each year
+        data_path (str): path to cluster data (unused)
+        method (str): method for clustering
+
+    Returns:
+        strains_by_year (list[list]): list of strains by year (with outliers removed)
+        clusters_by_year (list[list]): list of clusters by year (with outliers removed)
+    """
     encoded_strains = cluster.label_encode(strains_by_year)
     clusters_by_year = cluster.cluster_raw(encoded_strains, method)
     strains_by_year, clusters_by_year = cluster.remove_outliers(strains_by_year, clusters_by_year)
@@ -72,6 +114,16 @@ def read_dataset(path, data_path, limit=0, concat=False):
     Limit sets the maximum number of examples to read, zero meaning no limit.
     If concat is true each of the trigrams in a year is concatenated, if false
     they are instead summed elementwise.
+
+    Args:
+        path (str): path to CSV dataset
+        data_path (str): path to trigram vector data
+        limit (int): maximum number of examples to read (0 means no limit)
+        concat (bool): whether to concatenate trigram vectors
+
+    Returns:
+        trigram_vecs (np.array): trigram vectors, shape [num_time_steps, num_samples, feature_dim]
+        labels (ndarray): target labels, 1 for escape mutation and 0 otherwise - from df['y']
     """
     # subtype_flag, data_path = make_dataset.subtype_selection(subtype)
     _, trigram_vecs_data = make_dataset.read_trigram_vecs(data_path)
@@ -99,6 +151,12 @@ def read_dataset(path, data_path, limit=0, concat=False):
 def get_time_string(time):
     """
     Creates a string representation of minutes and seconds from the given time.
+
+    Args:
+        time (int): time in seconds
+
+    Returns:
+        time_string (str): time string representation, e.g. '  2m  5s'
     """
     mins = time // 60
     secs = time % 60

@@ -6,6 +6,13 @@ def get_confusion_matrix(y_true, y_pred):
     """
     Calculates the confusion matrix from given labels and predictions.
     Expects tensors or numpy arrays of same shape.
+
+    Args:
+        y_true (tensor | np.ndarray): Ground truth labels.
+        y_pred (tensor | np.ndarray): Predicted labels.
+
+    Returns:
+        confusion_matrix (list[list]): Confusion matrix [[TP, FP],[FN, TN]]
     """
     TP, FP, TN, FN = 0, 0, 0, 0
 
@@ -30,6 +37,12 @@ def get_confusion_matrix(y_true, y_pred):
 def get_accuracy(conf_matrix):
     """
     Calculates accuracy metric from the given confusion matrix.
+
+    Args:
+        conf_matrix (list[list]): Confusion matrix
+
+    Returns:
+        accuracy (float)
     """
     TP, FP, FN, TN = conf_matrix[0][0], conf_matrix[0][1], conf_matrix[1][0], conf_matrix[1][1]
     return (TP + TN) / (TP + FP + FN + TN)
@@ -38,6 +51,12 @@ def get_accuracy(conf_matrix):
 def get_precision(conf_matrix):
     """
     Calculates precision metric from the given confusion matrix.
+
+    Args:
+        conf_matrix (list[list]): Confusion matrix
+
+    Returns:
+        precision (float)
     """
     TP, FP = conf_matrix[0][0], conf_matrix[0][1]
 
@@ -50,6 +69,12 @@ def get_precision(conf_matrix):
 def get_recall(conf_matrix):
     """
     Calculates recall metric from the given confusion matrix.
+
+    Args:
+        conf_matrix (list[list]): Confusion matrix
+
+    Returns:
+        recall (float)
     """
     TP, FN = conf_matrix[0][0], conf_matrix[1][0]
 
@@ -62,6 +87,12 @@ def get_recall(conf_matrix):
 def get_f1score(conf_matrix):
     """
     Calculates f1-score metric from the given confusion matrix.
+
+    Args:
+        conf_matrix (list[list]): Confusion matrix
+
+    Returns:
+        f1score (float)
     """
     p = get_precision(conf_matrix)
     r = get_recall(conf_matrix)
@@ -75,6 +106,11 @@ def get_f1score(conf_matrix):
 def get_mcc(conf_matrix):
     """
     Calculates Matthew's Correlation Coefficient metric from the given confusion matrix.
+
+    Args:
+        conf_matrix (list[list]): Confusion matrix
+    Returns:
+        mcc (float)
     """
     TP, FP, FN, TN = conf_matrix[0][0], conf_matrix[0][1], conf_matrix[1][0], conf_matrix[1][1]
     if TP + FP > 0 and TP + FN > 0 and TN + FP > 0 and TN + FN > 0:
@@ -84,6 +120,20 @@ def get_mcc(conf_matrix):
 
 
 def evaluate(Y_real, Y_pred):
+    """
+    Runs all evaluations.
+
+    Args:
+        Y_real (tensor | np.ndarray): Ground truth labels.
+        Y_pred (tensor | np.ndarray): Predicted labels.
+
+    Returns:
+        precision (float)
+        recall (float)
+        fscore (float)
+        mcc (float)
+        val_acc (float)
+    """
     conf_matrix = get_confusion_matrix(Y_real, Y_pred)
     precision = get_precision(conf_matrix)
     recall = get_recall(conf_matrix)
@@ -95,6 +145,16 @@ def evaluate(Y_real, Y_pred):
 
 
 def list_summary(name, data):
+    """
+    Prints a summary of the given data, including a name and the count of each unique element.
+
+    Args:
+        name (str): Display name.
+        data (ndarray): Data to display a summary of.
+
+    Returns:
+        None
+    """
     print(name)
     unique, count = np.unique(data, return_counts=True)
     print(dict(zip(unique, count)))

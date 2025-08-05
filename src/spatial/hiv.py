@@ -4,6 +4,12 @@ np.random.seed(1)
 random.seed(1)
 
 def parse_args():
+    """
+    Configures analysis pipeline from CLI.
+
+     Returns:
+        argparse.Namespace
+    """
     import argparse
     parser = argparse.ArgumentParser(description='HIV sequence analysis')
     parser.add_argument('model_name', type=str,
@@ -36,12 +42,21 @@ def parse_args():
     return args
 
 def load_meta(meta_fnames):
+    """
+    Loads metadata from files.
+
+    Args:
+        meta_fnames (list[str]): The list of file names containing metadata
+
+    Returns:
+        metas (dict[str, list[dict]]): The metadata dictionary
+    """
     metas = {}
     for fname in meta_fnames:
         with open(fname) as f:
             for line in f:
                 if not line.startswith('>'):
-                    continue
+                    continue # skip headers
                 accession = line[1:].rstrip()
                 fields = line.rstrip().split('.')
                 subtype, country, year, strain = (
@@ -74,6 +89,17 @@ def load_meta(meta_fnames):
     return metas
 
 def process(args, fnames, meta_fnames):
+    """
+    Process metadata to parse and filter sequences.
+
+    Args:
+        args (argparse.Namespace): Arguments parsed from CLI
+        fnames (list[str]): The list of filenames of FASTA files.
+        meta_fnames (list[str]): The list of filenames of Metadata TSVs.
+
+    Returns:
+        seqs (dict[str, list[dict]]): dictionary mapping unique sequences to lists of corresponding metadata
+    """
     metas = load_meta(meta_fnames)
 
     seqs = {}
@@ -86,13 +112,25 @@ def process(args, fnames, meta_fnames):
                (not meta['subtype'].startswith('A')):
                 continue
             if 'X' in record.seq:
-                continue
+                continue # skip if there is ambiguity
             if record.seq not in seqs:
                 seqs[record.seq] = []
             seqs[record.seq].append(meta)
     return seqs
 
 def split_seqs(seqs, split_method='random'):
+    """
+       Splitting sequences into training and test sets.
+
+       Args:
+           seqs (dict[str, list[dict]]): The sequences dictionary
+           split_method (str): The method to use for splitting (Unused)
+
+       Returns:
+           tuple:
+               train_seqs (dict[str, list[dict]]): The training sequences
+               test_seqs (dict[str, list[dict]]): The test sequences
+    """
     train_seqs, test_seqs = {}, {}
 
     old_cutoff = 1900
@@ -107,19 +145,31 @@ def split_seqs(seqs, split_method='random'):
         ]
         if len(seq_dates) == 0:
             test_seqs[seq] = seqs[seq]
-            continue
+            continue # if sequence is not dated, put into test sequences
         if len(seq_dates) > 0:
             oldest_date = sorted(seq_dates)[0]
             if oldest_date < old_cutoff or oldest_date >= new_cutoff:
                 test_seqs[seq] = seqs[seq]
-                continue
-        train_seqs[seq] = seqs[seq]
+                continue # if sequence is beyond the cutoff dates, put into test sequences
+        train_seqs[seq] = seqs[seq] # default to train sequences
     tprint('{} train seqs, {} test seqs.'
            .format(len(train_seqs), len(test_seqs)))
 
     return train_seqs, test_seqs
 
 def setup(args):
+    """
+        Constructs the model and loads the hiv sequence data.
+
+        Args:
+            args (argparse.Namespace): The arguments parsed from the command line
+
+        Returns:
+            Tuple:
+                model (object): The model object
+                seqs (dict[str, list[dict]]): The sequences dictionary
+    """
+
     fnames = [ 'data/hiv/HIV-1_env_samelen.fa' ]
     meta_fnames = [ 'data/hiv/HIV-1_env_samelen.fa' ]
 
@@ -134,43 +184,76 @@ def setup(args):
     return model, seqs
 
 def interpret_clusters(adata):
+    """
+        Interprets and prints the contents of each Louvain cluster.
+
+        Args:
+            adata (anndata.AnnData): Annotated data object
+
+        Returns:
+            None
+    """
     clusters = sorted(set(adata.obs['louvain']))
     for cluster in clusters:
         tprint('Cluster {}'.format(cluster))
         adata_cluster = adata[adata.obs['louvain'] == cluster]
         for var in [ 'year', 'country', 'subtype' ]:
             tprint('\t{}:'.format(var))
-            counts = Counter(adata_cluster.obs[var])
+            counts = Counter(adata_cluster.obs[var]) # print the most common year, country and subtype
             for val, count in counts.most_common():
                 tprint('\t\t{}: {}'.format(val, count))
         tprint('')
 
+    # construct cluster-to-subtype map
     cluster2subtype = {}
     for i in range(len(adata)):
         cluster = adata.obs['louvain'][i]
         if cluster not in cluster2subtype:
             cluster2subtype[cluster] = []
         cluster2subtype[cluster].append(adata.obs['subtype'][i])
+
     largest_pct_subtype = []
     for cluster in cluster2subtype:
         count = Counter(cluster2subtype[cluster]).most_common(1)[0][1]
         pct_subtype = float(count) / len(cluster2subtype[cluster])
         largest_pct_subtype.append(pct_subtype)
         tprint('\tCluster {}, largest subtype % = {}'
-               .format(cluster, pct_subtype))
+               .format(cluster, pct_subtype)) # print the largest subtype per cluster
     tprint('Purity, Louvain and subtype: {}'
-           .format(np.mean(largest_pct_subtype)))
+           .format(np.mean(largest_pct_subtype))) # print mean purity of each cluster
 
 def plot_umap(adata):
+    """
+        Generates and saves UMAP visualizations.
+
+        Args:
+            adata (anndata.AnnData): Annotated data object
+            namespace (str): Prefix namespace for output filenames. Defaults to 'influenza'.
+
+        Returns:
+            None
+    """
     sc.tl.umap(adata, min_dist=1.)
     sc.pl.umap(adata, color='louvain', save='_hiv_louvain.png')
     sc.pl.umap(adata, color='subtype', save='_hiv_subtype.png')
 
 def analyze_embedding(args, model, seqs, vocabulary):
+    """
+        Embeds sequences, analyses them via clustering, and visualizes them.
+
+        Args:
+            args (argparse.Namespace): Arguments object from argparse
+            model (object): The model object
+            seqs (dict[str, list[dict]]): The sequences dictionary
+            vocabulary (dict[str, int]): the dictionary of the AA vocabulary
+        Returns:
+            None
+    """
     sorted_seqs = np.array([ str(s) for s in sorted(seqs.keys()) ])
     batch_size = 3000
     n_batches = math.ceil(len(sorted_seqs) / float(batch_size))
     for batchi in range(n_batches):
+        # define start and end indices of each batch
         start = batchi * batch_size
         end = (batchi + 1) * batch_size
         seqs_batch = { seq: seqs[seq] for seq in sorted_seqs[start:end] }
@@ -182,14 +265,14 @@ def analyze_embedding(args, model, seqs, vocabulary):
         del seqs_batch
 
     X, obs = [], {}
-    obs['n_seq'] = []
-    obs['seq'] = []
+    obs['n_seq'] = [] # number of times the sequence appears
+    obs['seq'] = [] # string form of each sequence
     for seq in seqs:
         meta = seqs[seq][0]
         X.append(meta['embedding'])
         for key in meta:
             if key == 'embedding':
-                continue
+                continue # skip header
             if key not in obs:
                 obs[key] = []
             obs[key].append(Counter([
@@ -212,14 +295,18 @@ def analyze_embedding(args, model, seqs, vocabulary):
     interpret_clusters(adata)
 
 if __name__ == '__main__':
+    """
+    Runs training for HIV datasets as specified by the command line arguments.
+    """
     args = parse_args()
 
     AAs = [
         'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H',
         'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W',
         'Y', 'V', 'X', 'Z', 'J', 'U', 'B',
-    ]
-    vocabulary = { aa: idx + 1 for idx, aa in enumerate(sorted(AAs)) }
+    ] # available amino acids
+
+    vocabulary = { aa: idx + 1 for idx, aa in enumerate(sorted(AAs)) }  # vocabulary - amino acid to index map
 
     model, seqs = setup(args)
 

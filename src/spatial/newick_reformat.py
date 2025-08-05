@@ -1,3 +1,10 @@
+"""
+Processes and reformats newick-formatted files for standardization.
+
+Command line arguments:
+    Path of input file, path of output file
+"""
+
 import sys
 
 newick = ''

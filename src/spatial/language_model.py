@@ -2,16 +2,26 @@ from utils import *
 
 import tensorflow as tf
 from tensorflow.keras import Input
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras import callbacks
 from tensorflow.keras.layers import (
     concatenate, Activation, Dense, Embedding, LSTM, Reshape)
-from tensorflow.keras.mixed_precision import experimental as mixed_precision
+import tensorflow.keras.mixed_precision as mixed_precision
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 class LanguageModel(object):
     def __init__(self, seed=None):
+        """
+        Generic language model
+
+        Args:
+            seed (int, optional): Seed for the random number generator. Defaults to random.
+
+        Returns:
+            None
+        """
         if seed is not None:
             tf.random.set_seed(seed)
 
@@ -24,13 +34,25 @@ class LanguageModel(object):
         #    pass
 
     def split_and_pad(self, *args, **kwargs):
+        """
+        Abstract class which must be implemented in subclasses, which splits and pads each sequence.
+        """
         raise NotImplementedError('Use LM instantiation instead '
                                   'of base class.')
 
     def fit(self, X_cat, lengths):
+        """
+        Runs training of the language model.
+
+        Args:
+            X_cat (np.ndarray): concatenated sequence indices
+            lengths (list): lengths of each original sequence
+        Returns:
+            self (the trained language model)
+        """
         X, y = self.split_and_pad(
             X_cat, lengths, self.seq_len_, self.vocab_size_, self.verbose_
-        )
+        ) # x - padded pre-sequence (train data) ; y - padded post-sequence (pad data)
 
         opt = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999,
                    amsgrad=False)
@@ -59,12 +81,31 @@ class LanguageModel(object):
         return self
 
     def predict(self, X_cat, lengths):
+        """
+        Makes a prediction of the probability distribution based on each model.
+
+        Args:
+            X_cat (np.ndarray): concatenated sequence indices
+            lengths (list): lengths of each original sequence
+        Returns:
+            y_pred (np.ndarray): predicted probability distribution across tokens per position
+        """
         X = self.split_and_pad(X_cat, lengths, self.seq_len_,
                                self.vocab_size_, self.verbose_)[0]
         y_pred = self.model_.predict(X, batch_size=2500)
         return y_pred
 
     def transform(self, X_cat, lengths, embed_fname=None):
+        """
+        Generates semantic embeddings for each sequence.
+
+        Args:
+            X_cat (np.ndarray): concatenated sequence indices
+            lengths (list): lengths of each original sequence
+            embed_fname (str, optional, unused): filename to save embeddings
+        Returns:
+            X_embed (np.ndarray): hidden-layer outputs for each batch
+        """
         X = self.split_and_pad(
             X_cat, lengths,
             self.seq_len_, self.vocab_size_, self.verbose_,
@@ -91,6 +132,7 @@ class LanguageModel(object):
             tprint('Embedding...')
             prog_bar = tf.keras.utils.Progbar(n_batches)
         for batchi in range(n_batches):
+            # define batch boundaries
             start = batchi * self.inference_batch_size_
             end = min((batchi + 1) * self.inference_batch_size_, n_samples)
             if type(X) == list:
@@ -103,7 +145,6 @@ class LanguageModel(object):
         X_embed_cat = np.concatenate(X_embed_cat)
         if self.verbose_:
             tprint('Done embedding.')
-
         X_embed = np.array([
             X_embed_cat[start:end]
             for start, end in
@@ -113,6 +154,15 @@ class LanguageModel(object):
         return X_embed
 
     def score(self, X_cat, lengths):
+        """
+        Evaluates total loss on data.
+
+        Args:
+            X_cat (np.ndarray): concatenated sequence indices
+            lengths (list): lengths of each original sequence
+        Returns:
+            score (float): total loss on data
+        """
         X, y_true = self.split_and_pad(
             X_cat, lengths, self.seq_len_, self.vocab_size_, self.verbose_
         )
@@ -127,11 +177,12 @@ class LanguageModel(object):
         metrics = self.model_.evaluate(X, y_true, verbose=self.verbose_ > 0,
                                        batch_size=self.inference_batch_size_)
 
+        # prints out metric values
         for val, metric in zip(metrics, self.model_.metrics_names):
             if self.verbose_:
                 tprint('Metric {}: {}'.format(metric, val))
 
-        return metrics[self.model_.metrics_names.index('loss')] * -len(lengths)
+        return metrics[self.model_.metrics_names.index('loss')] * -len(lengths) # total loss
 
 class DNNLanguageModel(LanguageModel):
     def __init__(
@@ -149,6 +200,26 @@ class DNNLanguageModel(LanguageModel):
             seed=None,
             verbose=False
     ):
+        """
+        DNN language model.
+
+        Args:
+            seq_len (int): maximum sequence length including start/end.
+            vocab_size (int): vocabulary size, i.e., number of unique tokens
+            embedding_dim (int): embedding dimension, defaults to 20
+            hidden_dim (int): hidden layer dimension, defaults to 256
+            n_hidden (int): number of hidden layers, defaults to 2
+            n_epochs (int): number of epochs, defaults to 1
+            batch_size (int): the size of each training batch, defaults to 1000
+            inference_batch_size (int): the size of each inference batch, defaults to 2000
+            cache_dir (str, optional): directory to cache embedding, defaults to '.'
+            model_name (str, optional): model name, defaults to 'dnn'
+            seed (int, optional): random seed, defaults to random key generation
+            verbose (bool, optional): verbose mode, defaults to False
+
+        Returns:
+            None
+        """
         super().__init__(seed=seed,)
 
         input_pre = Input(shape=(seq_len - 1,))
@@ -162,7 +233,7 @@ class DNNLanguageModel(LanguageModel):
         for _ in range(n_hidden):
             dense = Dense(hidden_dim, activation='relu')
             x_pre = dense(x_pre)
-            x_post = dense(x_post)
+            x_post = dense(x_post) # process hidden layers
 
         x = concatenate([ x_pre, x_post ], name='embed_layer')
 
@@ -171,6 +242,7 @@ class DNNLanguageModel(LanguageModel):
         self.model_ = Model(inputs=[ input_pre, input_post ],
                             outputs=output)
 
+        # set up attributes
         self.seq_len_ = seq_len
         self.vocab_size_ = vocab_size
         self.embedding_dim_ = embedding_dim
@@ -184,6 +256,24 @@ class DNNLanguageModel(LanguageModel):
         self.verbose_ = verbose
 
     def split_and_pad(self, X_cat, lengths, seq_len, vocab_size, verbose):
+        """
+        Splits each sequence and pads the sequence:
+            - For each position i, creates an input by removing the token at i
+            - Pads the resulting vector with max length of (seq_len - 1) with 0s
+
+        Args:
+            X_cat (np.ndarray): concatenated sequence indices
+            lengths (list): number of tokens in each original sequence
+            seq_len (int): maximum sequence length including start/end.
+            vocab_size (int): number of distinct tokens
+            verbose (int): verbose mode, controls how much process is printed
+
+        Returns:
+            X ([X_pre, X_post]):
+                X_pre: padded pre-sequence
+                x_post: padded post-sequence
+            Y: The true token index at each position
+        """
         if X_cat.shape[0] != sum(lengths):
             raise ValueError('Length dimension mismatch: {} and {}'
                              .format(X_cat.shape[0], sum(lengths)))
@@ -193,16 +283,16 @@ class DNNLanguageModel(LanguageModel):
         X_seqs = [
             X_cat[start:end].flatten()
             for start, end in iterate_lengths(lengths, seq_len)
-        ]
+        ] # splits into segments
         X_pre = [
             X_seq[:i] for X_seq in X_seqs for i in range(len(X_seq))
-        ]
+        ] # pre-sequence
         X_post = [
             X_seq[i + 1:] for X_seq in X_seqs for i in range(len(X_seq))
-        ]
+        ] # post-sequence
         y = np.array([
             X_seq[i] for X_seq in X_seqs for i in range(len(X_seq))
-        ])
+        ]) # true token indexes
 
         if verbose > 1:
             tprint('Padding {} splitted...'.format(len(X_pre)))
@@ -242,22 +332,43 @@ class LSTMLanguageModel(LanguageModel):
             seed=None,
             verbose=False
     ):
+        """
+        LSTM language model.
+
+        Args:
+            seq_len (int): maximum sequence length including start/end.
+            vocab_size (int): vocabulary size, i.e., number of unique tokens
+            embedding_dim (int): embedding dimension, defaults to 20
+            hidden_dim (int): hidden layer dimension, defaults to 256
+            n_hidden (int): number of hidden layers, defaults to 2
+            dff (int): size of dense feed-forward projection
+            n_epochs (int): number of epochs, defaults to 1
+            batch_size (int): the size of each training batch, defaults to 1000
+            inference_batch_size (int): the size of each inference batch, defaults to 2000
+            cache_dir (str, optional): directory to cache embedding, defaults to '.'
+            model_name (str, optional): model name, defaults to 'lstm'
+            seed (int, optional): random seed, defaults to random key generation
+            verbose (bool, optional): verbose mode, defaults to False
+
+        Returns:
+            None
+        """
         super().__init__(seed=seed,)
 
         policy = mixed_precision.Policy('mixed_float16')
-        mixed_precision.set_policy(policy)
+        mixed_precision.set_global_policy(policy)
 
         model = Sequential()
         model.add(Embedding(vocab_size + 1, embedding_dim,
-                            input_length=seq_len - 1))
+                            input_length=seq_len - 1)) # add embedding
 
         for _ in range(n_hidden - 1):
-            model.add(LSTM(hidden_dim, return_sequences=True))
-        model.add(LSTM(hidden_dim, name='embed_layer'))
+            model.add(LSTM(hidden_dim, return_sequences=True)) # add hidden layers
+        model.add(LSTM(hidden_dim, name='embed_layer')) # add embed layer
 
-        model.add(Dense(dff, activation='relu'))
-        model.add(Dense(vocab_size + 1))
-        model.add(Activation('softmax', dtype='float32'))
+        model.add(Dense(dff, activation='relu')) # add relu
+        model.add(Dense(vocab_size + 1)) # add output layer
+        model.add(Activation('softmax', dtype='float32')) # add softmax
 
         self.model_ = model
 
@@ -275,6 +386,22 @@ class LSTMLanguageModel(LanguageModel):
         self.verbose_ = verbose
 
     def split_and_pad(self, X_cat, lengths, seq_len, vocab_size, verbose):
+        """
+        Splits and pads the sequence:
+
+        For each of the positions, splits a prefix of the sequence up to and including the target token
+        and pads with zeros to length seq_len
+
+        Args:
+            X_cat (np.ndarray): concatenated sequence indices
+            lengths (list): number of tokens in each original sequence
+            seq_len (int): the maximum padded sequence length
+            vocab_size (int): number of distinct tokens
+            verbose (int): verbose mode, controls how much process is printed
+        Returns:
+            X (np.ndarray): A matrix such that each row is the input to predict the next token
+            Y (np.ndarray): The true token index at the end of each prefix
+        """
         if X_cat.shape[0] != sum(lengths):
             raise ValueError('Length dimension mismatch: {} and {}'
                              .format(X_cat.shape[0], sum(lengths)))
@@ -285,7 +412,7 @@ class LSTMLanguageModel(LanguageModel):
             X_cat[start:end].flatten()[:i + 1]
             for start, end in iterate_lengths(lengths, seq_len)
             for i in range(end - start)
-        ]
+        ] # possible sequences
 
         if verbose > 1:
             tprint('Padding...')
@@ -316,6 +443,27 @@ class BiLSTMLanguageModel(LanguageModel):
             seed=None,
             verbose=False
     ):
+        """
+        BiLSTM language model.
+
+        Args:
+            seq_len (int): maximum sequence length including start/end.
+            vocab_size (int): vocabulary size, i.e., number of unique tokens
+            embedding_dim (int): embedding dimension, defaults to 20
+            hidden_dim (int): hidden layer dimension, defaults to 256
+            n_hidden (int): number of hidden layers, defaults to 2
+            dff (int): size of dense feed-forward projection
+            n_epochs (int): number of epochs, defaults to 1
+            batch_size (int): the size of each training batch, defaults to 1000
+            inference_batch_size (int): the size of each inference batch, defaults to 2000
+            cache_dir (str, optional): directory to cache embedding, defaults to '.'
+            model_name (str, optional): model name, defaults to 'bilstm'
+            seed (int, optional): random seed, defaults to random key generation
+            verbose (bool, optional): verbose mode, defaults to False
+
+        Returns:
+            None
+        """
         super().__init__(seed=seed,)
 
         policy = mixed_precision.Policy('mixed_float16')
@@ -347,6 +495,7 @@ class BiLSTMLanguageModel(LanguageModel):
         self.model_ = Model(inputs=[ input_pre, input_post ],
                             outputs=output)
 
+        # initialize attributes
         self.seq_len_ = seq_len
         self.vocab_size_ = vocab_size
         self.embedding_dim_ = embedding_dim
@@ -361,6 +510,25 @@ class BiLSTMLanguageModel(LanguageModel):
         self.verbose_ = verbose
 
     def split_and_pad(self, X_cat, lengths, seq_len, vocab_size, verbose):
+        """
+        Splits each sequence and pads the sequence:
+           - For each position i, creates an input by removing the token at i
+           - Pads the resulting vector with max length of (seq_len - 1) with 0s
+
+        Args:
+           X_cat (np.ndarray): concatenated sequence indices
+           lengths (list): number of tokens in each original sequence
+           seq_len (int): the maximum padded sequence length
+           vocab_size (int): number of distinct tokens
+           verbose (int): verbose mode, controls how much process is printed
+
+        Returns:
+           X ([X_pre, X_post]):
+               X_pre: padded pre-sequence
+               x_post: padded post-sequence
+           Y: The true token index at each position
+        """
+
         if X_cat.shape[0] != sum(lengths):
             raise ValueError('Length dimension mismatch: {} and {}'
                              .format(X_cat.shape[0], sum(lengths)))
@@ -370,16 +538,16 @@ class BiLSTMLanguageModel(LanguageModel):
         X_seqs = [
             X_cat[start:end].flatten()
             for start, end in iterate_lengths(lengths, seq_len)
-        ]
+        ] # split into segments
         X_pre = [
             X_seq[:i] for X_seq in X_seqs for i in range(len(X_seq))
-        ]
+        ] # pre sequence
         X_post = [
             X_seq[i + 1:] for X_seq in X_seqs for i in range(len(X_seq))
-        ]
+        ] # post sequence
         y = np.array([
             X_seq[i] for X_seq in X_seqs for i in range(len(X_seq))
-        ])
+        ]) # actual values
 
         if verbose > 1:
             tprint('Padding {} splitted...'.format(len(X_pre)))
@@ -420,6 +588,28 @@ class AttentionLanguageModel(LanguageModel):
             seed=None,
             verbose=False
     ):
+        """
+        Attention language model
+
+        Args:
+            seq_len (int): maximum sequence length including start/end.
+            vocab_size (int): vocabulary size, i.e., number of unique tokens
+            embedding_dim (int): embedding dimension, defaults to 20
+            hidden_dim (int): hidden layer dimension, defaults to 256
+            n_hidden (int): number of hidden layers, defaults to 2
+            n_heads (int): number of attention heads, defaults to 8
+            dff (int):size of dense feed-forward projection
+            dropout_rate (float): dropout rate, defaults to 0.1
+            n_epochs (int): number of epochs, defaults to 1
+            batch_size (int): the size of each training batch, defaults to 1000
+            cache_dir (str, optional): directory to cache embedding, defaults to '.'
+            model_name (str, optional): model name, defaults to 'attention'
+            seed (int, optional): random seed, defaults to random key generation
+            verbose (bool, optional): verbose mode, defaults to False
+
+        Returns:
+            None
+        """
         super().__init__(seed=seed,)
 
         policy = mixed_precision.Policy('mixed_float16')
@@ -433,7 +623,7 @@ class AttentionLanguageModel(LanguageModel):
             vocab_size + 1, seq_len, dropout_rate,
             name='embed_layer',
         )
-        x = self.encoder_(input_, None)
+        x = self.encoder_(input_, None) # encoder
 
         x = Reshape((hidden_dim * (seq_len - 1),))(x)
 
@@ -441,6 +631,7 @@ class AttentionLanguageModel(LanguageModel):
         x = Dense(vocab_size + 1)(x)
         output = Activation('softmax', dtype='float32')(x)
 
+        # initialize attributes
         self.model_ = Model(inputs=input_, outputs=output)
 
         self.seq_len_ = seq_len
@@ -458,6 +649,20 @@ class AttentionLanguageModel(LanguageModel):
         self.verbose_ = verbose
 
     def split_and_pad(self, X_cat, lengths, seq_len, vocab_size, verbose):
+        """
+        Splits and pads each sequence with 0s.
+
+        Args:
+           X_cat (np.ndarray): concatenated sequence indices
+           lengths (list): number of tokens in each original sequence
+           seq_len (int): the maximum padded sequence length
+           vocab_size (int): number of distinct tokens
+           verbose (int): verbose mode, controls how much process is printed
+
+        Returns:
+            X: The sequence with the target token removed at each position, and padded with zeros to length seq_len-1
+            Y: The target token which was removed at each position
+        """
         if X_cat.shape[0] != sum(lengths):
             raise ValueError('Length dimension mismatch: {} and {}'
                              .format(X_cat.shape[0], sum(lengths)))

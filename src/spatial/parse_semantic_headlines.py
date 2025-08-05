@@ -1,11 +1,21 @@
 from utils import *
 
 def semantic_headlines(dirname):
+    """
+    Reads semantic headline files and human judgements. Reports human agreement and per-type grammaticality rates
+
+    Args:
+        dirname (str): the directory containing the semantic headlines
+
+    Returns:
+        None
+    """
     datasets = [ '1', 'A', '2', 'B' ]
     responses = [ '1', '2' ]
 
     data = []
     for dataset in datasets:
+        # read semantic headlines
         fname = ('{}/semantic_headlines_labeled_{}.csv'
                  .format(dirname, dataset))
         headline_type = {}
@@ -14,6 +24,7 @@ def semantic_headlines(dirname):
                 fields = line.rstrip().split(',')
                 headline_type[fields[1]] = fields[0]
 
+        # read human responses
         response_gram = { response: {} for response in responses }
         for response in responses:
             fname = ('{}/semantic_headlines_{}_response{}.csv'
@@ -30,32 +41,33 @@ def semantic_headlines(dirname):
                 response_gram['1'][headline], response_gram['2'][headline],
             ])
 
+    # construct data frame
     df = pd.DataFrame(data, columns=[
         'dataset', 'type', 'response1', 'response2'
     ])
 
     n_agree = sum([
         r1 == r2 for r1, r2 in zip(df.response1, df.response2)
-    ])
-    human_agreement = n_agree / float(len(df))
+    ]) # number of agreements
+    human_agreement = n_agree / float(len(df)) # agreement rate
     print('Human agreement: {} / {} = {:.2f}%\n'
           .format(n_agree, len(df), human_agreement * 100))
 
     types = sorted(set(df.type))
     for typ in types:
         print('Type: {}'.format(typ))
-        n_gram_1 = sum(df[df.type == typ].response1)
-        n_gram_2 = sum(df[df.type == typ].response2)
+        n_gram_1 = sum(df[df.type == typ].response1) # Grammatical (Response 1)
+        n_gram_2 = sum(df[df.type == typ].response2) # Grammatical (Response 2)
         n_gram_12 = sum([
             r1 == r2 == True for r1, r2 in
             zip(df[df.type == typ].response1,
                 df[df.type == typ].response2)
-        ])
+        ]) # Grammatical (Response 1 and 2)
         n_agree_type = sum([
             r1 == r2 for r1, r2 in
             zip(df[df.type == typ].response1,
                 df[df.type == typ].response2)
-        ])
+        ]) # Grammatical agreement
         print('Grammatical (Response 1): {}'.format(n_gram_1))
         print('Grammatical (Response 2): {}'.format(n_gram_2))
         print('Grammatical (Response 1 and 2): {}'.format(n_gram_12))
@@ -63,4 +75,7 @@ def semantic_headlines(dirname):
         print('')
 
 if __name__ == '__main__':
+    """
+    Performs analysis on specified semantic headlines file.
+    """
     semantic_headlines('data/headlines/semantic_headlines')

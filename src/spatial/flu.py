@@ -4,11 +4,17 @@ np.random.seed(1)
 random.seed(1)
 
 def parse_args():
+    """
+    Configures analysis pipeline from CLI.
+
+     Returns:
+        argparse.Namespace
+    """
     import argparse
     parser = argparse.ArgumentParser(description='Flu sequence analysis')
     parser.add_argument('model_name', type=str,
                         help='Type of language model (e.g., hmm, lstm)')
-    parser.add_argument('--namespace', type=str, default='flu',
+    parser.add_argument('--namespace', type=str, default='influenza',
                         help='Model namespace')
     parser.add_argument('--dim', type=int, default=512,
                         help='Embedding dimension')
@@ -36,6 +42,15 @@ def parse_args():
     return args
 
 def load_meta(meta_fnames):
+    """
+    Loads metadata from files.
+
+    Args:
+        meta_fnames (list[str]): The list of file names containing metadata
+
+    Returns:
+        metas (dict[str, list[dict]]): The metadata dictionary
+    """
     metas = {}
     for fname in meta_fnames:
         with open(fname) as f:
@@ -58,22 +73,43 @@ def load_meta(meta_fnames):
     return metas
 
 def process(fnames, meta_fnames):
+    """
+    Process metadata to parse and filter sequences.
+
+    Args:
+        fnames (list[str]): The list of filenames of FASTA files.
+        meta_fnames (list[str]): The list of filenames of Metadata TSVs.
+
+    Returns:
+        seqs (dict[str, list[dict]]): dictionary mapping unique sequences to lists of corresponding metadata
+    """
     metas = load_meta(meta_fnames)
 
     seqs = {}
     for fname in fnames:
         for record in SeqIO.parse(fname, 'fasta'):
             if 'Reference_Perth2009_HA_coding_sequence' in record.description:
-                continue
+                continue # skip header
             if str(record.seq).count('X') > 10:
-                continue
+                continue # skip if there are more than 10 ambiguous records
             if record.seq not in seqs:
                 seqs[record.seq] = []
             accession = record.description.split('|')[0].split(':')[1]
             seqs[record.seq].append(metas[accession])
     return seqs
 
-def split_seqs(seqs, split_method='random'):
+def split_seqs(seqs):
+    """
+    Splitting sequences into training and test sets.
+
+    Args:
+        seqs (dict[str, list[dict]]): The sequences dictionary
+
+    Returns:
+        tuple:
+            train_seqs (dict[str, list[dict]]): The training sequences
+            test_seqs (dict[str, list[dict]]): The test sequences
+    """
     train_seqs, test_seqs, val_seqs = {}, {}, {}
 
     old_cutoff = 1990
@@ -85,12 +121,12 @@ def split_seqs(seqs, split_method='random'):
         seq_dates = [
             meta['Collection Date'] for meta in seqs[seq]
             if meta['Collection Date'] is not None
-        ]
+        ] # dates of the sequence list
         if len(seq_dates) > 0:
             oldest_date = sorted(seq_dates)[0]
             if oldest_date < old_cutoff or oldest_date >= new_cutoff:
                 test_seqs[seq] = seqs[seq]
-                continue
+                continue # if date is outside the range, add to test sequences list instead
         train_seqs[seq] = seqs[seq]
     tprint('{} train seqs, {} test seqs.'
            .format(len(train_seqs), len(test_seqs)))
@@ -98,6 +134,18 @@ def split_seqs(seqs, split_method='random'):
     return train_seqs, test_seqs
 
 def setup(args):
+    """
+    Constructs the model and loads the influenza sequence data.
+
+    Args:
+        args (argparse.Namespace): The arguments parsed from the command line
+
+    Returns:
+        Tuple:
+            model (object): The model object
+            seqs (dict[str, list[dict]]): The sequences dictionary
+    """
+
     fnames = [ 'data/influenza/ird_influenzaA_HA_allspecies.fa' ]
     meta_fnames = [ 'data/influenza/ird_influenzaA_HA_allspecies_meta.tsv' ]
 
@@ -111,6 +159,15 @@ def setup(args):
     return model, seqs
 
 def interpret_clusters(adata):
+    """
+    Interprets and prints the contents of each Louvain cluster.
+
+    Args:
+        adata (anndata.AnnData): Annotated data object
+
+    Returns:
+        None
+    """
     clusters = sorted(set(adata.obs['louvain']))
     for cluster in clusters:
         tprint('Cluster {}'.format(cluster))
@@ -118,11 +175,12 @@ def interpret_clusters(adata):
         for var in [ 'Collection Date', 'Country', 'Subtype',
                      'Flu Season', 'Host Species', 'Strain Name' ]:
             tprint('\t{}:'.format(var))
-            counts = Counter(adata_cluster.obs[var])
+            counts = Counter(adata_cluster.obs[var]) # information regarding the most common cluster
             for val, count in counts.most_common():
                 tprint('\t\t{}: {}'.format(val, count))
         tprint('')
 
+    # construct cluster-to-subtype and cluster-to-species maps
     cluster2subtype = {}
     cluster2species = {}
     for i in range(len(adata)):
@@ -132,6 +190,9 @@ def interpret_clusters(adata):
             cluster2species[cluster] = []
         cluster2subtype[cluster].append(adata.obs['Subtype'][i])
         cluster2species[cluster].append(adata.obs['Host Species'][i])
+
+    # finds most frequent subtype and species for each cluster
+    # and calculates the relevant percentages
     largest_pct_subtype = []
     largest_pct_species = []
     for cluster in cluster2subtype:
@@ -154,16 +215,35 @@ def interpret_clusters(adata):
            .format(np.mean(largest_pct_species)))
 
 def seq_clusters(adata):
+    """
+    Writes most common sequences to FASTA.
+
+    Args:
+        adata (anndata.AnnData): Annotated data object
+
+    Returns:
+        None
+    """
     clusters = sorted(set(adata.obs['louvain']))
     for cluster in clusters:
         adata_cluster = adata[adata.obs['louvain'] == cluster]
         counts = Counter(adata_cluster.obs['seq'])
-        with open('target/flu/clusters/cluster{}.fa'.format(cluster), 'w') as of:
+        with open('target/influenza/clusters/cluster{}.fa'.format(cluster), 'w') as of:
             for i, (seq, count) in enumerate(counts.most_common()):
                 of.write('>cluster{}_{}_{}\n'.format(cluster, i, count))
                 of.write(seq + '\n\n')
 
-def plot_umap(adata, namespace='flu'):
+def plot_umap(adata, namespace='influenza'):
+    """
+    Generates and saves UMAP visualizations.
+
+    Args:
+        adata (anndata.AnnData): Annotated data object
+        namespace (str): Prefix namespace for output filenames. Defaults to 'influenza'.
+
+    Returns:
+        None
+    """
     if namespace == 'flu1918':
         plt.figure()
         ax = plt.gca()
@@ -186,17 +266,28 @@ def plot_umap(adata, namespace='flu'):
                save='_{}_louvain.png'.format(namespace))
 
 def analyze_embedding(args, model, seqs, vocabulary):
+    """
+    Embeds sequences, analyses them via clustering, and visualizes them.
+
+    Args:
+        args (argparse.Namespace): Arguments object from argparse
+        model (object): The model object
+        seqs (dict[str, list[dict]]): The sequences dictionary
+        vocabulary (dict[str, int]): the dictionary of the AA vocabulary
+    Returns:
+        None
+    """
     seqs = embed_seqs(args, model, seqs, vocabulary, use_cache=True)
 
     X, obs = [], {}
-    obs['n_seq'] = []
-    obs['seq'] = []
+    obs['n_seq'] = [] # number of times each sequence appears
+    obs['seq'] = [] # string form of each sequence
     for seq in seqs:
         meta = seqs[seq][0]
         X.append(meta['embedding'].mean(0))
         for key in meta:
             if key == 'embedding':
-                continue
+                continue # skip header
             if key not in obs:
                 obs[key] = []
             obs[key].append(Counter([
@@ -227,19 +318,24 @@ def analyze_embedding(args, model, seqs, vocabulary):
     plot_umap(adata[adata.obs['louvain'] == '30'],
               namespace='flu1918')
 
+    # output and save clusters
     interpret_clusters(adata)
 
     seq_clusters(adata)
 
 if __name__ == '__main__':
+    """
+    Runs training for Influenza datasets as specified by the command line arguments.
+    """
     args = parse_args()
 
     AAs = [
         'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H',
         'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W',
         'Y', 'V', 'X', 'Z', 'J', 'U', 'B', 'Z'
-    ]
-    vocabulary = { aa: idx + 1 for idx, aa in enumerate(sorted(AAs)) }
+    ] # available amino acids
+
+    vocabulary = { aa: idx + 1 for idx, aa in enumerate(sorted(AAs)) } # vocabulary - amino acid to index map
 
     model, seqs = setup(args)
 

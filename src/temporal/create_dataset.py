@@ -14,6 +14,15 @@ from sklearn.neighbors import NearestNeighbors
 import random
 
 def label_encode(strains):
+    """
+    Preprocesses raw gene sequences by encoding into numerical form.
+
+    Args:
+        strains(list[string]): strain sequences in AA characters
+
+    Returns:
+        encoded_strains(list[string]): encoded strains in numerical form
+    """
     amino_acids = ['A', 'F', 'Q', 'R', 'T', 'Y', 'V', 'I', 'H', 'K', 'P', 'N', 'E', 'G', 'S', 'M', 'D', 'W', 'C', 'L', '-', 'B', 'J', 'Z', 'X']
     le = preprocessing.LabelEncoder()
     le.fit(amino_acids)
@@ -27,6 +36,15 @@ def label_encode(strains):
 
 
 def label_decode(encoded_strains):
+    """
+    Decodes encoded strains into AA characters.
+
+    Args:
+        encoded_strains(list[string]): encoded strains in numerical form
+
+    Returns:
+        strains(list[string]): decoded strains in AA characters
+    """
     amino_acids = ['A', 'F', 'Q', 'R', 'T', 'Y', 'V', 'I', 'H', 'K', 'P', 'N', 'E', 'G', 'S', 'M', 'D', 'W', 'C', 'L', '-', 'B', 'J', 'Z', 'X']
     le = preprocessing.LabelEncoder()
     le.fit(amino_acids)
@@ -42,8 +60,17 @@ def label_decode(encoded_strains):
     return strains
 
 
-#strains : df['Sequence']
 def strain_cluster(strains,num_clusters=2):
+    """
+    Clusters similar strains using K-means clustering.
+
+    Args:
+        strains(list[string]): unencoded strains in AA characters, typically from df['Sequence']
+        num_clusters(int): number of clusters
+
+    Returns:
+        result (dict[string, list]): a dictionary containing keys 'data', 'labels' and 'centroids'.
+    """
     encoded_strains = label_encode(strains)
     kmeans = KMeans(n_clusters=num_clusters, random_state=0)
     kmeans.fit(encoded_strains)
@@ -54,6 +81,16 @@ def strain_cluster(strains,num_clusters=2):
 
 
 def show_cluster(cluster,save_fig_path='none'):
+    """
+    Visualizes clusters.
+
+    Args:
+        cluster (dict): a dictionary containing keys 'data', 'labels' and 'centroids', typically output of strain_cluster.
+        save_fig_path(string): path to save the figure. Default is 'none' which no image will be saved.
+    Returns:
+        None
+    Output File (PCA scatter plot) : as specified in save_fig_path parameter
+    """
     encoded_strains = cluster['data']
     pca = PCA(n_components=2)
     reduced_data = pca.fit_transform(encoded_strains)
@@ -68,10 +105,19 @@ def show_cluster(cluster,save_fig_path='none'):
 
 
 def link_clusters(clusters):
-    no_years = len(clusters)
-    neigh = NearestNeighbors(n_neighbors=2)
+    """
+    Links clusters in different years using nearest neighbor analysis.
+
+    Args:
+        clusters (list[dict]): a list of clusters to link
+
+    Returns:
+        None (modifies the passed in cluster directly)
+    """
+    no_years = len(clusters) # each cluster represents one year
+    neigh = NearestNeighbors(n_neighbors=2) # analyze the two nearest neigbors
     for year_idx in range(no_years):
-        if (year_idx == no_years - 1):  # last year doesn't link
+        if year_idx == no_years - 1:  # last year doesn't link
             clusters[year_idx]['links'] = []
             break
         links = []
@@ -87,6 +133,16 @@ def link_clusters(clusters):
 
 
 def sample_from_clusters(clusters_by_years, sample_size):
+    """
+    Generates time-series samples from clusters.
+
+    Args:
+        clusters_by_years(list[dict]): a list of clusters by years, typically output from link_clusters()
+        sample_size (int): number of samples to generate
+
+    Returns:
+        sampled_strains(list[list]): sampled strains across times
+    """
     sampled_strains = []
     for i in range(sample_size):
         one_sample = []
@@ -96,6 +152,7 @@ def sample_from_clusters(clusters_by_years, sample_size):
 
         num_years = len(clusters_by_years)
         idx = start_idx
+        # select random sample for the remaining years
         for i in range(num_years - 1):
             next_nearest_label = clusters_by_years[i]['links'][idx][0]
             candidate_idx = np.where(clusters_by_years[i + 1]['labels'] == next_nearest_label)[0]
@@ -107,10 +164,21 @@ def sample_from_clusters(clusters_by_years, sample_size):
     return sampled_strains
 
 
-# input: list of list, n_sample*n_year, each item is a strain(str)
-# output: return/write a df/csv file, format
-# like 'data/processed/H1N1/triplet_cluster_train.csv'
 def create_dataset(strains, position, window_size=10, output_path='None'):
+    """
+    Constructs training data for predicting mutation escape.
+
+    Args:
+        strains (list[list]): a list of strains across time - n_sample*n_year, each item is a strain(str)
+        position (int): the position of the strain
+        window_size (int): time window, i.e., number of years to look back
+        output_path (string): path to save the dataset (unused)
+
+    Returns:
+        dataset (DataFrame): a dataframe containing training data, contraining features and mutation labels
+
+    Input File (CSV File of Dataset): data/raw/H1N1/protVec_100d_3grams.csv
+    """
     # create label
     label = []
     for sample in strains:
@@ -182,18 +250,28 @@ def create_dataset(strains, position, window_size=10, output_path='None'):
 
         data.append(one_sample_data)
 
-    dataset = pd.DataFrame(data)
+    dataset = pd.DataFrame(data) # convert to dataframe
     print(dataset.shape)
     print(len(label))
     dataset.insert(0, 'y', label)
     return dataset
 
 def main():
+    """
+    Executes the processing pipeline.
+
+    Returns:
+        None
+
+    Input Files (clusters): /data/zh/sprot_years/
+    """
     path = '/data/zh/sprot_years/'
     files = os.listdir(path)
     files.sort()
     cluster_years = []
     start_time = time.time()
+
+    # read cluster by year
     for file in files:
         df = pd.read_csv(path + file)
         strains = df['Sequence'].sample(1000, replace=True)
@@ -203,6 +281,7 @@ def main():
 
     link_clusters(cluster_years)
 
+    # obtain and decode samples, and create DataFrame
     ss = sample_from_clusters(cluster_years, 10)
 
     dss = label_decode(ss)

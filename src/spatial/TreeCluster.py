@@ -7,8 +7,18 @@ from sys import stderr
 NUM_THRESH = 1000 # number of thresholds for the threshold-free methods to use
 VERBOSE = False
 
-# merge two sorted lists into a sorted list
+
 def merge_two_sorted_lists(x,y):
+    """
+    Merges two sorted lists into a sorted list.
+
+    Args:
+        x (list): first sorted list
+        y (list): second sorted list
+
+    Returns:
+        out (list): sorted list
+    """
     out = list(); i = 0; j = 0
     while i < len(x) and j < len(y):
         if x[i] < y[j]:
@@ -21,38 +31,82 @@ def merge_two_sorted_lists(x,y):
         out.append(y[j]); j += 1
     return out
 
-# merge multiple sorted lists into a sorted list
 def merge_multi_sorted_lists(lists):
+    """
+    Merge multiple sorted lists into a sorted list.
+
+    Args:
+        lists (list[list]): list of sorted lists
+
+    Returns:
+        out (list): sorted list
+    """
+
+    # using a priority queue structure
     pq = PriorityQueue()
     for l in range(len(lists)):
         if len(lists[l]) != 0:
             pq.put((lists[l][0],l))
     inds = [1 for _ in range(len(lists))]
     out = list()
+    # reconstruct a list by dequeing the priority queue
     while not pq.empty():
         d,l = pq.get(); out.append(d)
         if inds[l] < len(lists[l]):
             pq.put((lists[l][inds[l]],l)); l += 1
     return out
 
-# get the median of a sorted list
 def median(x):
+    """
+    Obtains the median of a sorted list.
+
+    Args:
+        x (list[T]): sorted list
+
+    Returns:
+        x (T): median of x
+    """
     if len(x) % 2 != 0:
         return x[int(len(x)/2)]
     else:
         return (x[int(len(x)/2)]+x[int(len(x)/2)-1])/2
 
-# get the average of a list
 def avg(x):
+    """
+    Obtains the average of a sorted list.
+
+    Args:
+        x (list[T]): sorted list
+
+    Returns:
+        x (T): average of x
+    """
     return float(sum(x))/len(x)
 
-# convert p-distance to Jukes-Cantor distance
+
 def p_to_jc(d,seq_type):
+    """
+    Converts p-distance to Jukes-Cantor distance.
+
+    Args:
+        d (float): p-distance
+        seq_type (str): sequence type ('dna' or 'protein')
+    Returns:
+        jc (float): Jukes-Cantor distance
+    """
     b = {'dna':3./4., 'protein':19./20.}[seq_type]
     return -1*b*log(1-(d/b))
 
-# cut out the current node's subtree (by setting all nodes' DELETED to True) and return list of leaves
 def cut(node):
+    """
+    Cut out the current node's subtree (by setting all nodes' DELETED to True) and return list of leaves.
+
+    Args:
+        node (treeswift.Node): node to cut
+
+    Returns:
+        cluster (list[string]): list of leaves
+    """
     cluster = list()
     descendants = Queue(); descendants.put(node)
     while not descendants.empty():
@@ -68,8 +122,17 @@ def cut(node):
                 descendants.put(c)
     return cluster
 
-# initialize properties of input tree and return set containing taxa of leaves
 def prep(tree,support):
+    """
+    Initializes properties of input tree and return set containing taxa of leaves.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        support (float): support score
+
+    Returns:
+        leaves (set[string]): set of leaves
+    """
     tree.resolve_polytomies(); tree.suppress_unifurcations()
     leaves = set()
     for node in tree.traverse_postorder():
@@ -87,8 +150,17 @@ def prep(tree,support):
                 node.edge_length = float('inf')
     return leaves
 
-# return a sorted list of all unique pairwise leaf distances <= a given threshold
 def pairwise_dists_below_thresh(tree,threshold):
+    """
+    Returns a sorted list of all unique pairwise leaf distances <= a given threshold.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+
+    Returns:
+        pairwise_dists (list): sorted pairwise distances
+    """
     pairwise_dists = set()
     for node in tree.traverse_postorder():
         if node.is_leaf():
@@ -116,8 +188,18 @@ def pairwise_dists_below_thresh(tree,threshold):
                         node.min_leaf_dist = nd
     return sorted(pairwise_dists)
 
-# split leaves into minimum number of clusters such that the maximum leaf pairwise distance is below some threshold
 def min_clusters_threshold_max(tree,threshold,support):
+    """
+    Split leaves into minimum number of clusters such that the maximum leaf pairwise distance is below some threshold.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
     clusters = list()
     for node in tree.traverse_postorder():
@@ -161,8 +243,18 @@ def min_clusters_threshold_max(tree,threshold,support):
         clusters.append(list(leaves))
     return clusters
 
-# median leaf pairwise distance cannot exceed threshold, and clusters must define clades
 def min_clusters_threshold_med_clade(tree,threshold,support):
+    """
+    Returns clusters such that median leaf pairwise distance cannot exceed threshold, and clusters must define clades.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
 
     # bottom-up traversal to compute median pairwise distances
@@ -204,8 +296,18 @@ def min_clusters_threshold_med_clade(tree,threshold,support):
             print("%s;" % root.newick(), file=stderr)
     return [[str(l) for l in root.traverse_leaves()] for root in roots]
 
-# average leaf pairwise distance cannot exceed threshold, and clusters must define clades
 def min_clusters_threshold_avg_clade(tree,threshold,support):
+    """
+    Returns clusters such that average leaf pairwise distance cannot exceed threshold, and clusters must define clades.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
 
     # bottom-up traversal to compute average pairwise distances
@@ -237,8 +339,17 @@ def min_clusters_threshold_avg_clade(tree,threshold,support):
             print("%s;" % root.newick(), file=stderr)
     return [[str(l) for l in root.traverse_leaves()] for root in roots]
 
-# total branch length cannot exceed threshold, and clusters must define clades
 def min_clusters_threshold_sum_bl_clade(tree,threshold,support):
+    """
+    Returns clusters such that total branch length cannot exceed threshold, and clusters must define clades.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
 
     # compute branch length sums
@@ -264,8 +375,18 @@ def min_clusters_threshold_sum_bl_clade(tree,threshold,support):
             print("%s;" % root.newick(), file=stderr)
     return [[str(l) for l in root.traverse_leaves()] for root in roots]
 
-# total branch length cannot exceed threshold
+
 def min_clusters_threshold_sum_bl(tree,threshold,support):
+    """
+    Returns clusters such that total branch length cannot exceed threshold.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
     clusters = list()
     for node in tree.traverse_postorder():
@@ -298,8 +419,19 @@ def min_clusters_threshold_sum_bl(tree,threshold,support):
         clusters.append(list(leaves))
     return clusters
 
-# single-linkage clustering using Metin's cut algorithm
+
 def single_linkage_cut(tree,threshold,support):
+    """
+    Single-linkage clustering using Metin's cut algorithm.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
     clusters = list()
 
@@ -360,8 +492,19 @@ def single_linkage_cut(tree,threshold,support):
         clusters.append(list(leaves))
     return clusters
 
-# single-linkage clustering using Niema's union algorithm
+
 def single_linkage_union(tree,threshold,support):
+    """
+    Single-linkage clustering using Niema's union algorithm.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
     clusters = list()
 
@@ -404,8 +547,19 @@ def single_linkage_union(tree,threshold,support):
                     ds.union(c1.min_below[1], c2.min_below[1])
     return [list(s) for s in ds.sets()]
 
-# min_clusters_threshold_max, but all clusters must define a clade
+
 def min_clusters_threshold_max_clade(tree,threshold,support):
+    """
+    Min_clusters_threshold_max, but all clusters must define a clade
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
 
     # compute leaf distances and max pairwise distances
@@ -434,8 +588,19 @@ def min_clusters_threshold_max_clade(tree,threshold,support):
             print("%s;" % root.newick(), file=stderr)
     return [[str(l) for l in root.traverse_leaves()] for root in roots]
 
-# pick the threshold between 0 and "threshold" that maximizes number of (non-singleton) clusters
 def argmax_clusters(method,tree,threshold,support):
+    """
+    Picks the threshold between 0 and "threshold" that maximizes number of (non-singleton) clusters.
+
+    Args:
+        method (function): method of clustering
+        tree (treeswift.Tree): input tree
+        threshold (float): upper bound of threshold
+        support (float): support score
+
+    Return:
+        best (float): best threshold
+    """
     from copy import deepcopy
     assert threshold > 0, "Threshold must be positive"
     #thresholds = pairwise_dists_below_thresh(deepcopy(tree),threshold)
@@ -451,8 +616,18 @@ def argmax_clusters(method,tree,threshold,support):
     print("\nBest Threshold: %f"%best_t,file=stderr)
     return best
 
-# cut all branches longer than the threshold
 def length(tree,threshold,support):
+    """
+    Cuts all branches longer than the threshold.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
     clusters = list()
     for node in tree.traverse_postorder():
@@ -473,8 +648,18 @@ def length(tree,threshold,support):
         clusters.append(list(leaves))
     return clusters
 
-# same as length, and clusters must define a clade
 def length_clade(tree,threshold,support):
+    """
+    Same as length, and clusters must define a clade.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
 
     # compute max branch length in clades
@@ -500,8 +685,19 @@ def length_clade(tree,threshold,support):
             print("%s;" % root.newick(), file=stderr)
     return [[str(l) for l in root.traverse_leaves()] for root in roots]
 
-# cut tree at threshold distance from root (clusters will be clades by definition) (ignores support threshold if branch is below cutting point)
+
 def root_dist(tree,threshold,support):
+    """
+    Cuts tree at threshold distance from root (clusters will be clades by definition) (ignores support threshold if branch is below cutting point).
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     leaves = prep(tree,support)
     clusters = list()
     for node in tree.traverse_preorder():
@@ -524,17 +720,65 @@ def root_dist(tree,threshold,support):
         clusters.append(list(leaves))
     return clusters
 
-# cut tree at threshold distance from the leaves (if tree not ultrametric, max = distance from furthest leaf from root, min = distance from closest leaf to root, avg = average of all leaves)
 def leaf_dist(tree,threshold,support,mode):
+    """
+    Cuts tree at threshold distance from the leaves.
+    (if tree not ultrametric, max = distance from furthest leaf from root, min = distance from closest leaf to root, avg = average of all leaves)
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+        mode (str): 'max', 'min' or 'avg'
+
+    Returns:
+        cluster (list): processed clusters
+    """
     modes = {'max':max,'min':min,'avg':avg}
     assert mode in modes, "Invalid mode. Must be one of: %s" % ', '.join(sorted(modes.keys()))
     dist_from_root = modes[mode](d for u,d in tree.distances_from_root(internal=False)) - threshold
     return root_dist(tree,dist_from_root,support)
+
 def leaf_dist_max(tree,threshold,support):
+    """
+    Cuts tree by distance from furthest leaf from root.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     return leaf_dist(tree,threshold,support,'max')
+
 def leaf_dist_min(tree,threshold,support):
+    """
+    Cuts tree by distance from closest leaf from root.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     return leaf_dist(tree,threshold,support,'min')
+
 def leaf_dist_avg(tree,threshold,support):
+    """
+    Cuts tree by average distance from root of all leaves.
+
+    Args:
+        tree (treeswift.Tree): input tree
+        threshold (float): threshold of leaf distance
+        support (float): support score
+
+    Returns:
+        cluster (list): processed clusters
+    """
     return leaf_dist(tree,threshold,support,'avg')
 
 METHODS = {
@@ -556,6 +800,12 @@ METHODS = {
 }
 THRESHOLDFREE = {'argmax_clusters':argmax_clusters}
 if __name__ == "__main__":
+    """ 
+    Builds tree representation of clusters.
+    
+    Input File: as specified in the -i parameter, otherwise stdin
+    Output file: as specified in the -o parameter, otherwise stdout 
+    """
     # parse user arguments
     import argparse
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -567,6 +817,7 @@ if __name__ == "__main__":
     parser.add_argument('-tf', '--threshold_free', required=False, type=str, default=None, help="Threshold-Free Approach (options: %s)" % ', '.join(sorted(THRESHOLDFREE.keys())))
     parser.add_argument('-v', '--verbose', action='store_true', help="Verbose Mode")
     args = parser.parse_args()
+    # sanity check
     assert args.method.lower() in METHODS, "ERROR: Invalid method: %s" % args.method
     assert args.threshold_free is None or args.threshold_free in THRESHOLDFREE, "ERROR: Invalid threshold-free approach: %s" % args.threshold_free
     assert args.threshold >= 0, "ERROR: Length threshold must be at least 0"
@@ -575,7 +826,7 @@ if __name__ == "__main__":
     if args.input == 'stdin':
         from sys import stdin; infile = stdin
     elif args.input.lower().endswith('.gz'):
-        from gzip import open as gopen; infile = gopen(args.input)
+        from gzip import open as gopen; infile = gopen(args.input) # unzip in necessary
     else:
         infile = open(args.input)
     if args.output == 'stdout':

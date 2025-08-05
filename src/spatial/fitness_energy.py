@@ -3,6 +3,12 @@ from utils import *
 from sklearn.metrics import auc
 
 def parse_args():
+    """
+    Parse command line arguments
+
+    Returns:
+        args (argparse.Namespace): parsed command line arguments
+    """
     import argparse
     parser = argparse.ArgumentParser(description='Benchmark methods')
     parser.add_argument('method', type=str,
@@ -13,6 +19,16 @@ def parse_args():
     return args
 
 def print_result(fitnesses, predictions, virus):
+    """
+    Prints out spearman correlation, person correlation and corresponding p-values for the given data.
+
+    Args:
+        fitnesses (list[float]): list of observed fitnesses
+        predictions (list[float]): list of predicted values from model
+        virus (str): name of the virus to print
+    Returns:
+        None
+    """
     tprint('Results for {}:'.format(virus))
     tprint('Spearman r = {}, P = {}'
            .format(*ss.spearmanr(fitnesses, predictions)))
@@ -20,13 +36,25 @@ def print_result(fitnesses, predictions, virus):
            .format(*ss.pearsonr(fitnesses, predictions)))
 
 def fitness_energy(virus):
+    """
+    Evaluates and prints fitness energy scores.
+
+    Args:
+        virus (str): name of the virus to print
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: if the virus type is not recognized
+    """
     if virus == 'h1':
         from combinatorial_fitness import load_doud2016
         strains, seqs_fitness = load_doud2016()
         strain = 'h1'
-        train_fname = 'target/flu/clusters/all_h1.fasta'
-        mut_fname = 'target/flu/mutation/mutations_h1.fa'
-        energy_fname = 'target/flu/clusters/all_h1.fasta.E.txt'
+        train_fname = 'target/influenza/clusters/all_h1.fasta'
+        mut_fname = 'target/influenza/mutation/mutations_h1.fa'
+        energy_fname = 'target/influenza/clusters/all_h1.fasta.E.txt'
     elif virus == 'bf520':
         from combinatorial_fitness import load_haddox2018
         strains, seqs_fitness = load_haddox2018()
@@ -47,11 +75,11 @@ def fitness_energy(virus):
     train_seqs = list(SeqIO.parse(train_fname, 'fasta'))
     mut_seqs = list(SeqIO.parse(mut_fname, 'fasta'))
     energies = np.loadtxt(energy_fname)
-    assert(len(energies) == len(train_seqs) + len(mut_seqs))
+    assert(len(energies) == len(train_seqs) + len(mut_seqs)) # length of energy list should match the number of total sequences
 
     mut2energy = { str(seq.seq).replace('-', ''): -energy
                    for seq, energy in
-                   zip(mut_seqs, energies[len(train_seqs):]) }
+                   zip(mut_seqs, energies[len(train_seqs):]) } # mutation to energy map
 
     fitnesses, predictions = [], []
     for mut_seq, strain in seqs_fitness:
@@ -63,12 +91,24 @@ def fitness_energy(virus):
     print_result(fitnesses, predictions, virus + ' (Potts)')
 
 def fitness_evcouplings(virus):
+    """
+    Benchmarks and prints fitness EVcoupling scores.
+
+    Args:
+        virus (str): name of the virus to print
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: if the virus type is not recognized
+    """
     if virus == 'h1':
         from combinatorial_fitness import load_doud2016
         strains, seqs_fitness = load_doud2016()
         strain = 'h1'
-        train_fname = 'target/flu/clusters/all_h1.fasta'
-        energy_fname = ('target/flu/evcouplings/flu_h1/mutate/'
+        train_fname = 'target/influenza/clusters/all_h1.fasta'
+        energy_fname = ('target/influenza/evcouplings/flu_h1/mutate/'
                         'flu_h1_single_mutant_matrix.csv')
         anchor_id = ('gb:LC333185|ncbiId:BBB04702.1|UniProtKB:-N/A-|'
                      'Organism:Influenza')
@@ -95,10 +135,10 @@ def fitness_evcouplings(virus):
     for idx, record in enumerate(SeqIO.parse(train_fname, 'fasta')):
         if record.id == anchor_id:
             anchor = str(record.seq).replace('-', '')
-    assert(anchor is not None)
+    assert(anchor is not None) # anchor must have been found
 
-    pos_aa_score_epi = {}
-    pos_aa_score_ind = {}
+    pos_aa_score_epi = {} # maps (pos, mut) to AA's epistemic score
+    pos_aa_score_ind = {} # maps (pos, mut) to AA's independent score
     with open(energy_fname) as f:
         f.readline()
         for line in f:
@@ -119,13 +159,13 @@ def fitness_evcouplings(virus):
         if mutation == anchor:
             continue
         didx = [ c1 != c2
-                 for c1, c2 in zip(anchor, mutation) ].index(True)
+                 for c1, c2 in zip(anchor, mutation) ].index(True) # first difference
         if (didx, mutation[didx]) in pos_aa_score_epi:
             mut_scores_epi.append(pos_aa_score_epi[(didx, mutation[didx])])
             mut_scores_ind.append(pos_aa_score_ind[(didx, mutation[didx])])
         else:
             mut_scores_epi.append(0)
-            mut_scores_ind.append(0)
+            mut_scores_ind.append(0) # defaults to 0 if not already in database
         fitnesses.append(seqs_fitness[(mutation, strain)][0]['preference'])
 
     print_result(mut_scores_epi, fitnesses,
@@ -134,12 +174,24 @@ def fitness_evcouplings(virus):
                  virus + ' (EVcouplings independent)')
 
 def fitness_freq(virus):
+    """
+    Benchmarks mutation frequency against experimental fitness, and prints the results.
+
+    Args:
+        virus (str): the virus to test
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: if the virus is invalid
+    """
     if virus == 'h1':
         from combinatorial_fitness import load_doud2016
         strains, seqs_fitness = load_doud2016()
         strain = 'h1'
-        train_fname = 'target/flu/clusters/all_h1.fasta'
-        mut_fname = 'target/flu/mutation/mutations_h1.fa'
+        train_fname = 'target/influenza/clusters/all_h1.fasta'
+        mut_fname = 'target/influenza/mutation/mutations_h1.fa'
         anchor_id = ('gb:LC333185|ncbiId:BBB04702.1|UniProtKB:-N/A-|'
                      'Organism:Influenza')
     elif virus == 'bf520':
@@ -172,7 +224,7 @@ def fitness_freq(virus):
                 if (pos, c) not in pos_aa_freq:
                     pos_aa_freq[(pos, c)] = 0.
                 pos_aa_freq[(pos, c)] += 1.
-    assert(anchor is not None)
+    assert(anchor is not None) # anchor must have been found
 
     mutations = [
         str(record.seq) for record in SeqIO.parse(mut_fname, 'fasta')
@@ -182,15 +234,15 @@ def fitness_freq(virus):
     for mut_idx, mutation in enumerate(mutations):
         if mutation == anchor:
             continue
-        mutation_clean = str(mutation).replace('-', '')
+        mutation_clean = str(mutation).replace('-', '') # remove ambiguities
         if (mutation_clean, strain) not in seqs_fitness:
             continue
         didx = [ c1 != c2
-                 for c1, c2 in zip(anchor, mutation) ].index(True)
+                 for c1, c2 in zip(anchor, mutation) ].index(True) # first difference
         if (didx, mutation[didx]) in pos_aa_freq:
             mut_freqs.append(pos_aa_freq[(didx, mutation[didx])])
         else:
-            mut_freqs.append(0)
+            mut_freqs.append(0) # 0 if first difference not already in database
         fitnesses.append(
             seqs_fitness[(mutation_clean, strain)][0]['preference']
         )
@@ -199,6 +251,10 @@ def fitness_freq(virus):
     print_result(mut_freqs, fitnesses, virus + ' (freq)')
 
 if __name__ == '__main__':
+    """
+    Performs analysis for the specified method.
+    """
+
     args = parse_args()
 
     if args.method == 'energy':

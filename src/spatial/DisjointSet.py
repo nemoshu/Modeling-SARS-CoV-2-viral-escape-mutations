@@ -4,13 +4,14 @@ try:
 except ImportError:
     from queue import Queue
 class DisjointSet:
-    '''``DisjointSet`` class, implemented using the Up-Tree data structure for amortized O(1) find and union operations'''
+
     def __init__(self, initial=None):
-        '''``DisjointSet`` constructor
-        
+        """
+        ``DisjointSet`` class, implemented using the Up-Tree data structure for amortized O(1) find and union operations
+
         Args:
-            ``initial`` (iterable): Elements with which to initialize the ``DisjointSet`` (each element will be in its own set)
-        '''
+            initial (iterable): Elements with which to initialize the ``DisjointSet`` (each element will be in its own set)
+        """
         self.parent = dict() # parent[u] = parent of node u
         self.num_below = dict() # num_below[u] = number of nodes below u (including u) (only current for sentinels)
         if initial is not None:
@@ -18,53 +19,60 @@ class DisjointSet:
                 self.add(x)
 
     def __contains__(self, x):
-        '''Check if an element ``x`` exists in this ``DisjointSet``
+        """
+        Check if an element ``x`` exists in this ``DisjointSet``
 
         Args:
-            ``x``: The element to check
+            x: The element to check
 
         Returns:
-            ``bool``: ``True`` if ``x`` exists in this ``DisjointSet``, otherwise ``False``
-        '''
+            bool: ``True`` if ``x`` exists in this ``DisjointSet``, otherwise ``False``
+        """
         return x in self.parent
 
     def __iter__(self):
-        ''' Iterate over the elements of this ``DisjointSet``'''
+        """
+        Iterate over the elements of this ``DisjointSet``
+        """
         for x in self.parent:
             yield x
 
     def __len__(self):
-        '''Return the number of elements in this ``DisjointSet``
+        """
+        Return the number of elements in this ``DisjointSet``
 
         Returns:
-            ``int``: The number of elements contained within this ``DisjointSet``
-        '''
+            int: The number of elements contained within this ``DisjointSet``
+        """
         return len(self.parent)
 
     def __str__(self):
-        '''Return a string representation of this ``DisjointSet``
+        """
+        Return a string representation of this ``DisjointSet``
 
         Returns:
-            ``str``: A string representation of this ``DisjointSet``
-        '''
+            str: A string representation of this ``DisjointSet``
+        """
         return str(self.sets())
 
     def add(self, x):
-        '''Add a new element ``x`` to this ``DisjointSet`` as a sentinel node
+        """
+        Add a new element ``x`` to this ``DisjointSet`` as a sentinel node
 
         Args:
-            ``x``: The element to insert
-        '''
+            x: The element to insert
+        """
         if x in self:
             raise ValueError("Node already exists: %s"%x)
         self.parent[x] = None; self.num_below[x] = 1
 
     def remove(self, x):
-        '''Remove the element ``x`` from this ``DisjointSet``
+        """
+        Remove the element ``x`` from this ``DisjointSet``
 
         Args:
-            ``x``: The element to remove
-        '''
+            x: The element to remove
+        """
         if x not in self:
             raise ValueError("Node not found: %s"%x)
         p = self.parent[x]
@@ -76,14 +84,15 @@ class DisjointSet:
         del self.parent[x]; del self.num_below[x]
 
     def find(self, x):
-        '''Return the sentinel node of the element ``x``. Implements path compression along the search
+        """
+        Return the sentinel node of the element ``x``. Implements path compression along the search
 
         Args:
-            ``x``: The element to find
+            x: The element to find
 
         Returns:
             The sentinel node of ``x``
-        '''
+        """
         if x not in self:
             raise ValueError("Node not found: %s"%x)
         explored = Queue(); curr = x
@@ -94,12 +103,13 @@ class DisjointSet:
         return curr
 
     def union(self, x, y):
-        '''Union the sets containing ``x`` and ``y``. Implements Union-By-Size
+        """
+        Union the sets containing ``x`` and ``y``. Implements Union-By-Size
 
         Args:
-            ``x``: One of the two elements whose sets will be unioned
-            ``y``: One of the two elements whose sets will be unioned
-        '''
+            x: One of the two elements whose sets will be unioned
+            y: One of the two elements whose sets will be unioned
+        """
         if x not in self:
             raise ValueError("Node not found: %s"%x)
         if y not in self:
@@ -113,11 +123,12 @@ class DisjointSet:
             self.parent[sx] = sy; self.num_below[sy] += (self.num_below[sx] + 1)
 
     def sets(self):
-        '''Return the sets of this ``DisjointSet``
+        """
+        Return the sets of this ``DisjointSet``
 
         Returns:
-            ``list`` of ``set``: The sets of this ``DisjointSet``
-        '''
+            list[set]: The sets of this ``DisjointSet``
+        """
         out_sets = dict()
         for x in self.parent:
             p = self.parent[x]

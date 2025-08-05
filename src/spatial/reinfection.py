@@ -1,6 +1,13 @@
 from utils import *
 
 def load_to2020():
+    """
+    Loads the To et al. 2020 reinfection data.
+
+    Returns:
+        seq (string): the original sequence
+        mutants (dict[int: list[string]]: {4: [4-mutation sequence]}
+    """
     seq = str(SeqIO.read('data/cov/cov2_spike_wt.fasta', 'fasta').seq)
     seq = seq[:779] + 'Q' + seq[780:]
 
@@ -10,7 +17,7 @@ def load_to2020():
 
     mutants = { 4: [] }
     for i in range(len(muts)):
-        assert(len(muts[i]) == 4)
+        assert(len(muts[i]) == 4) # 4-mutation sequences only
         mutable = seq
         for mut in muts[i]:
             aa_orig = mut[0]
@@ -23,6 +30,13 @@ def load_to2020():
     return seq, mutants
 
 def load_ratg13():
+    """
+    Loads the RaTG13 reinfection data.
+
+    Returns:
+        seq (string): the original sequence
+        mutants (dict[int: list[string]]: {8: [8-mutation sequence]})
+    """
     seq = str(SeqIO.read('data/cov/cov2_spike_wt.fasta', 'fasta').seq)
 
     muts = [
@@ -32,7 +46,7 @@ def load_ratg13():
 
     mutants = { 8: [] }
     for i in range(len(muts)):
-        assert(len(muts[i]) == 8)
+        assert(len(muts[i]) == 8) # 8-mutation sequences only
         mutable = seq
         for mut in muts[i]:
             aa_orig = mut[0]
@@ -45,6 +59,13 @@ def load_ratg13():
     return seq, mutants
 
 def load_sarscov1():
+    """
+    Loads the SARS-CoV-1 cross-species case.
+
+    Returns:
+        seq (string): the original sequence
+        mutants (dict[int: list[string]]: {12: [12-mutation sequence]})
+    """
     seq = str(SeqIO.read('data/cov/cov2_spike_wt.fasta', 'fasta').seq)
 
     muts = [
@@ -55,7 +76,7 @@ def load_sarscov1():
 
     mutants = { 12: [] }
     for i in range(len(muts)):
-        assert(len(muts[i]) == 12)
+        assert(len(muts[i]) == 12) # 12-mutation sequences only
         mutable = seq
         for mut in muts[i]:
             aa_orig = mut[0]
@@ -68,6 +89,9 @@ def load_sarscov1():
     return seq, mutants
 
 if __name__ == '__main__':
+    """
+    Testing purposes only. No data processing to be conducted.
+    """
     load_to2020()
     load_ratg13()
     load_sarscov1()

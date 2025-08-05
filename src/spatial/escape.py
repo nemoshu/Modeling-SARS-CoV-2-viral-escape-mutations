@@ -1,6 +1,16 @@
 from utils import Seq, SeqIO
 
 def load_doud2018(survival_cutoff=0.05):
+    """
+    Loads escape mutation data for H1 HA from Doud et al. (2018).
+
+    Args:
+        survival_cutoff (float): Threshold above which mutations are considered significant escapes
+    Returns:
+        Tuple:
+            seq (string): wild-type sequence
+            seqs_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
+    """
     pos_map = {}
     with open('data/influenza/escape_doud2018/pos_map.csv') as f:
         f.readline() # Consume header.
@@ -44,6 +54,14 @@ def load_doud2018(survival_cutoff=0.05):
     return seq, seqs_escape
 
 def load_lee2019():
+    """
+    Loads H3 HA escape mutations from Lee et al. (2019)
+
+    Returns:
+        Tuple:
+            seq (string): wild-type sequence
+            seqs_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
+    """
     fname = 'data/influenza/escape_lee2019/Perth2009_H3_HA.fa'
     for record in SeqIO.parse(fname, 'fasta'):
         seq = record.seq
@@ -80,6 +98,16 @@ def load_lee2019():
     return seq, seqs_escape
 
 def load_dingens2019(survival_cutoff=0.11):
+    """
+    Loads HIV escape mutations from Dingens et al. (2019)
+
+    Args:
+        survival_cutoff (float): Threshold above which mutations are considered significant
+    Returns:
+        Tuple:
+            seq (string): wild-type sequence
+            seq_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
+    """
     pos_map = {}
     with open('data/hiv/escape_dingens2019/BG505_to_HXB2.csv') as f:
         f.readline() # Consume header.
@@ -122,6 +150,14 @@ def load_dingens2019(survival_cutoff=0.11):
     return seq, seqs_escape
 
 def load_baum2020():
+    """
+    Loads fixed SARS-CoV-2 Spike escape mutations from Baum et al. (2020).
+
+    Returns:
+        Tuple:
+            seq (string): wild-type sequence
+            seq_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
+    """
     seq = SeqIO.read('data/cov/cov2_spike_wt.fasta', 'fasta').seq
 
     muts = [
@@ -150,6 +186,19 @@ def load_baum2020():
 
 def load_greaney2020(survival_cutoff=0.3,
                      binding_cutoff=-0.4, expr_cutoff=-0.4):
+    """
+    Loads SARS-CoV-2 escape data from Greaney et al. (2020), filtered using combined biological criteria.
+
+    Args:
+        survival_cutoff (float): Minimum fraction of antibody escape tolerated
+        binding_cutoff (float): Maximum binding reduction tolerated
+        expr_cutoff (float): Minimum expression level tolerated
+
+    Returns:
+        Tuple:
+            seq (string): wild-type sequence
+            seq_escape (dict[string, list[dict]]): a dictionary mapping sequence to the corresponding list of metadata dicts
+    """
     seq = SeqIO.read('data/cov/cov2_spike_wt.fasta', 'fasta').seq
 
     sig_sites = set()
@@ -210,6 +259,10 @@ def load_greaney2020(survival_cutoff=0.3,
     return seq, seqs_escape
 
 if __name__ == '__main__':
+    """
+    Testing purposes.
+    Loaded data not processed.
+    """
     load_doud2018()
     load_lee2019()
     load_dingens2019()

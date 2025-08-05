@@ -4,6 +4,15 @@ import math
 
 
 def subtype_selection(subtype):
+    """
+    Translate a subtype in the string format into the corresponding integer subtype flag.
+
+    Args:
+        subtype (str): subtype to translate, from 'H1N1', 'H3N2', 'H3N3' or 'COV19'
+
+    Returns:
+        subtype_flag (int): subtype flag
+    """
     global subtype_flag, data_path
     if subtype == 'H1N1':
         subtype_flag = 0
@@ -23,8 +32,17 @@ def read_trigram_vecs(subtype):
     data_path argument indicating where it is located.
     Returns a dictionary that maps a 3gram of amino acids to its
     index and a numpy array containing the trigram vecs.
+
+    Input file: protVec_100d_3grams.csv
+
+    Args:
+        subtype (any): unused
+
+    Returns:
+        trigram_to_idx (dict): trigram to index map
+        trigram_vec (list): trigram vectors
     """
-    data_path = 'D:/TBSI/Masters_Thesis/NLP_papers/TEMPO/Tempo-main/data/raw/H1N1_cluster/'
+    data_path = '/Users/nemoshu/Computer science experiments/UCL/BiologyNLP/output/'
     prot_vec_file = 'protVec_100d_3grams.csv'
 
     df = pd.read_csv(data_path + prot_vec_file, delimiter='\t')
@@ -38,7 +56,14 @@ def read_trigram_vecs(subtype):
 def read_strains_from(data_files, data_path):
     """
     Reads the raw strains from the data_files located by the data_path.
-    Returns a pandas series for each data file, contained in a ordered list.
+    Returns a pandas series for each data file, contained in an ordered list.
+
+    Args:
+        data_files (list): list of data file names
+        data_path (str): directory containing the data files
+
+    Returns:
+        raw_strains (list): list of raw strains
     """
     # _, data_path = subtype_selection(subtype)
     raw_strains = []
@@ -55,8 +80,18 @@ def train_test_split_strains(strains_by_year, test_split, cluster):
     Shuffles the strains in each year and splits them into two disjoint sets,
     of size indicated by the test_split.
     Expects and returns pandas dataframe or series.
+
+    Args:
+        strains_by_year (pandas.DataFrame): dataframe of strains by year
+        test_split (float): percentage of data to use for testing
+        cluster (string): cluster type
+
+    Returns:
+        train_strains (pandas.DataFrame): dataframe of training strains
+        test_strains (pandas.DataFrame): dataframe of test strains
     """
     train_strains, test_strains = [], []
+    # random cluster
     if cluster == 'random':
         for strains in strains_by_year:
             num_of_training_examples = int(math.floor(strains.count() * (1 - test_split)))

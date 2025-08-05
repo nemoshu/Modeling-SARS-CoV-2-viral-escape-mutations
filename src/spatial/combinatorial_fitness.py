@@ -4,29 +4,41 @@ from Bio.Seq import translate
 import numpy as np
 
 def load_doud2016():
+    """
+    Loads H1 influenza fitness data.
+
+    Returns:
+        - strains (dict): Dictionary of wild-type sequences {strain: wt_seq}
+        - seqs_fitness (dict): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data:
+            - fitnesses
+            - preferences
+            - wildtype
+            - mut_pos
+    """
     strain = 'h1'
 
     fname = 'data/influenza/escape_doud2018/WSN1933_H1_HA.fa'
-    wt_seq = SeqIO.read(fname, 'fasta').seq
+    wt_seq = SeqIO.read(fname, 'fasta').seq # wild-type sequence
 
     seqs_fitness = {}
-    fname = ('data/influenza/fitness_doud2016/'
+    fname = \
+        ('data/influenza/fitness_doud2016/'
              'Supplemental_File_2_HApreferences.txt')
     with open(fname) as f:
-        muts = f.readline().rstrip().split()[4:]
+        muts = f.readline().rstrip().split()[4:] # mutants
         for line in f:
-            fields = line.rstrip().split()
+            fields = line.rstrip().split() # data fields available
             pos = int(fields[0]) - 1
             orig = fields[1]
-            assert(wt_seq[pos] == orig)
-            data = [ float(field) for field in fields[3:] ]
-            assert(len(muts) == len(data))
+            assert(wt_seq[pos] == orig) # confirm the reference WT matches
+            data = [ float(field) for field in fields[3:] ] # all remaining columns
+            assert(len(muts) == len(data)) # confirm mutation headers matches actual data
             for mut, pref in zip(muts, data):
-                mutable = [ aa for aa in wt_seq ]
+                mutable = [ aa for aa in wt_seq ] # list of characters from wt_seq
                 assert(mut.startswith('PI_'))
                 mutable[pos] = mut[-1]
-                mut_seq = ''.join(mutable)
-                assert(len(mut_seq) == len(wt_seq))
+                mut_seq = ''.join(mutable) # mutated sequence
+                assert(len(mut_seq) == len(wt_seq)) # confirm mutated sequence is the same length
                 if (mut_seq, strain) not in seqs_fitness:
                     seqs_fitness[(mut_seq, strain)] = [ {
                         'strain': strain,
@@ -41,6 +53,7 @@ def load_doud2016():
                     seqs_fitness[(mut_seq, strain)][0][
                         'preferences'].append(pref)
 
+    # compute medians
     for fit_key in seqs_fitness:
         seqs_fitness[fit_key][0]['fitness'] = np.median(
             seqs_fitness[fit_key][0]['fitnesses']
@@ -52,10 +65,30 @@ def load_doud2016():
     return { strain: wt_seq }, seqs_fitness
 
 def load_haddox2018():
+    """
+    Loads HIV fitness data.
+
+    Input Files:
+        - data/hiv/fitness_haddox2018/BF520_env.fasta
+        - data/hiv/fitness_haddox2018/BF520_to_HXB2.csv
+        - data/hiv/fitness_haddox2018/BF520_avgprefs.csv
+        - data/hiv/fitness_haddox2018/BG505_env.fasta
+        - data/hiv/fitness_haddox2018/BG505_to_HXB2.csv
+        - data/hiv/fitness_haddox2018/BG505_avgprefs.csv
+
+    Returns:
+        - strains (dict): Dictionary of wild-type sequences {strain: wt_seq}
+        - seqs_fitness (dict): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data:
+            - strain
+            - fitnesses
+            - preferences
+            - wildtype
+            - mut_pos
+    """
     strain_names = [ 'BF520', 'BG505' ]
 
-    strains = {}
-    seqs_fitness = {}
+    strains = {}  # maps strains to sequence
+    seqs_fitness = {}  # maps strains to metadata
     for strain in strain_names:
         wt_seq = translate(SeqIO.read(
             'data/hiv/fitness_haddox2018/'
@@ -64,7 +97,7 @@ def load_haddox2018():
         strains[strain] = wt_seq
 
         fname = 'data/hiv/fitness_haddox2018/{}_to_HXB2.csv'.format(strain)
-        pos_map = {}
+        pos_map = {} # map from sequence to (origin, position)
         with open(fname) as f:
             f.readline() # Consume header.
             for line in f:
@@ -78,10 +111,11 @@ def load_haddox2018():
             for line in f:
                 fields = line.rstrip().split(',')
                 orig, pos = pos_map[fields[0]]
-                assert(wt_seq[int(pos)] == orig)
+                assert(wt_seq[int(pos)] == orig) # confirm that wt_sequence at position matches the original
                 preferences = [ float(field) for field in fields[1:] ]
-                assert(len(mutants) == len(preferences))
+                assert(len(mutants) == len(preferences)) # confirm that each mutant matches has a preference
                 for mut, pref in zip(mutants, preferences):
+                    # insert mutation
                     mutable = [ aa for aa in wt_seq ]
                     mutable[pos] = mut
                     mut_seq = ''.join(mutable)
@@ -99,6 +133,7 @@ def load_haddox2018():
                         seqs_fitness[(mut_seq, strain)][0][
                             'preferences'].append(pref)
 
+    # compute and add medians
     for fit_key in seqs_fitness:
         seqs_fitness[fit_key][0]['fitness'] = np.median(
             seqs_fitness[fit_key][0]['fitnesses']
@@ -110,6 +145,22 @@ def load_haddox2018():
     return strains, seqs_fitness
 
 def load_wu2020():
+    """
+    Loads combinatorial mutation data.
+
+    Input Files:
+        - data/influenza/fitness_wu2020/wildtypes.fa
+        - data/influenza/fitness_wu2020/data_pref.tsv
+
+
+    Returns:
+        - strains (dict): Dictionary of wild-type sequences {strain: wt_seq}
+        - seqs_fitness (dict): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data:
+            - fitness
+            - preference
+            - wildtype
+            - mut_pos
+    """
     mut_pos = [
         156, 158, 159, 190, 193, 196
     ]
@@ -131,7 +182,7 @@ def load_wu2020():
         strain_idx = names.index(record.description)
         wt = wildtypes[strain_idx]
         for aa, pos in zip(wt, mut_pos):
-            assert(record.seq[pos] == aa)
+            assert(record.seq[pos] == aa) # check if record sequence matches the wild type
         wt_seqs[names[strain_idx]] = record.seq
 
     # Load mutants.
@@ -155,10 +206,11 @@ def load_wu2020():
             full_seq = wt_seqs[strain]
 
             mutable = [ aa for aa in full_seq ]
+            # insert mutation
             for aa_wt, aa, pos in zip(wt, mut, mut_pos):
                 assert(mutable[pos] == aa_wt)
                 mutable[pos] = aa
-            mut_seq = ''.join(mutable)
+            mut_seq = ''.join(mutable) # convert to flat string
 
             if (mut_seq, strain) not in seqs_fitness:
                 seqs_fitness[(mut_seq, strain)] = []
@@ -173,6 +225,22 @@ def load_wu2020():
     return wt_seqs, seqs_fitness
 
 def load_starr2020():
+    """
+    Loads SARS-CoV-2 binding data.
+
+    Input files:
+        - data/cov/cov2_spike_wt.fasta
+        - data/cov/starr2020cov2/binding_Kds.csv
+
+    Returns:
+        - strains (dict): Dictionary of wild-type sequences {strain: wt_seq}
+        - seqs_fitness (dict): Dictionary of mutation data, keyed by (mut_seq, strain), containing the following data:
+            - fitnesses
+            - preferences
+            - wildtype
+            - mut_pos
+    """
+
     strain = 'sars_cov_2'
     wt_seq = SeqIO.read('data/cov/cov2_spike_wt.fasta', 'fasta').seq
 
@@ -190,8 +258,8 @@ def load_starr2020():
             for mutant in mutants:
                 orig, mut = mutant[0], mutant[-1]
                 pos = int(mutant[1:-1]) - 1 + 330
-                assert(wt_seq[pos] == orig)
-                mutable[pos] = mut
+                assert(wt_seq[pos] == orig) # confirm wild-type sequence matches original
+                mutable[pos] = mut # perform mutation
                 mut_pos.append(pos)
             mut_seq = ''.join(mutable)
 
@@ -209,6 +277,7 @@ def load_starr2020():
                 seqs_fitness[(mut_seq, strain)][0][
                     'preferences'].append(log10Ka)
 
+    # calculate medians
     for fit_key in seqs_fitness:
         seqs_fitness[fit_key][0]['fitness'] = np.median(
             seqs_fitness[fit_key][0]['fitnesses']
@@ -222,8 +291,10 @@ def load_starr2020():
     return { strain: wt_seq }, seqs_fitness
 
 if __name__ == '__main__':
+    """
+    For test purposes only. Loaded data is not processed.
+    """
     load_starr2020()
-    exit()
     load_doud2016()
     load_haddox2018()
     load_wu2020()

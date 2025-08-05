@@ -5,6 +5,21 @@ def err_model(name):
 
 def get_model(args, seq_len, vocab_size,
               inference_batch_size=1500):
+    """
+    Obtains the relevant untrained model specified in the command line arguments.
+
+    Args:
+        args (argparse.Namespace): Arguments parsed from the command line.
+        seq_len (int): Sequence length.
+        vocab_size (int): Vocabulary size.
+        inference_batch_size (int): Batch size. Defaults to 1500.
+
+    Returns:
+        An untrained model of the specified type
+
+    Raises:
+        ValueError: If the specified model name is not supported.
+    """
     if args.model_name == 'hmm':
         from hmmlearn.hmm import MultinomialHMM
         model = MultinomialHMM(
@@ -42,7 +57,7 @@ def get_model(args, seq_len, vocab_size,
             hidden_dim=args.dim,
             n_hidden=2,
             n_epochs=args.n_epochs,
-            batch_size=batch_size,
+            batch_size=args.batch_size,
             inference_batch_size=inference_batch_size,
             cache_dir='target/{}'.format(args.namespace),
             seed=args.seed,
@@ -84,6 +99,17 @@ def get_model(args, seq_len, vocab_size,
     return model
 
 def featurize_seqs(seqs, vocabulary):
+    """
+    Converts a dictionary of sequences into arrays used by the models.
+
+    Args:
+        seqs (dict): dictionary of sequences
+        vocabulary (dict[str, int]): dictionary of residues to a unique index
+
+    Returns:
+        X (np.ndarray): concatenated token indices
+        lens (np.ndarray): length of each sequence (including start/end tokens)
+    """
     start_int = len(vocabulary) + 1
     end_int = len(vocabulary) + 2
     sorted_seqs = sorted(seqs.keys())
@@ -93,19 +119,50 @@ def featurize_seqs(seqs, vocabulary):
         ] + [ end_int ]) for seq in sorted_seqs
     ]).reshape(-1, 1)
     lens = np.array([ len(seq) + 2 for seq in sorted_seqs ])
-    assert(sum(lens) == X.shape[0])
+    assert(sum(lens) == X.shape[0]) # confirm that total length is the same as the expected inpit size
     return X, lens
 
 def fit_model(name, model, seqs, vocabulary):
+    """
+    Vectorizes data and calls model.fit() to fit the model.
+
+    Args:
+        name (str): unused
+        model (LanguageModel): A model which implements .fit(X, lengths)
+        seqs (dict): dictionary of sequences
+        vocabulary (dict[str, int]): dictionary of residues to a unique index
+    Returns:
+        model (LanguageModel): The model trained on seqs
+    """
     X, lengths = featurize_seqs(seqs, vocabulary)
     model.fit(X, lengths)
     return model
 
 def cross_entropy(logprob, n_samples):
+    """
+    Converts total log-likelihood into cross-entropy loss.
+
+    Args:
+        logprob (float): sum of log-likelihoods from model.score
+        n_samples (int): total number of samples
+
+    Returns:
+        float: cross-entropy loss
+    """
     return -logprob / n_samples
 
 def report_performance(model_name, model, vocabulary,
                        train_seqs, test_seqs):
+    """
+    Evaluates and prints cross-entropy performance.
+
+    Args:
+        model_name (str): name of the model
+        model (LanguageModel): the model instance
+        vocabulary (dict[str, int]): dictionary of residues to a unique index
+        train_seqs (dict): dictionary of train sequences
+        test_seqs (dict): dictionary of test sequences
+    """
     X_train, lengths_train = featurize_seqs(train_seqs, vocabulary)
     logprob = model.score(X_train, lengths_train)
     tprint('Model {}, train cross entropy: {}'
@@ -116,6 +173,22 @@ def report_performance(model_name, model, vocabulary,
            .format(model_name, cross_entropy(logprob, len(lengths_test))))
 
 def train_test(args, model, seqs, vocabulary, split_seqs=None):
+    """
+    Handles one round of training.
+
+    Args:
+        args (argparse.Namespace): command line arguments
+        model (LanguageModel): the model instance
+        seqs (dict): dictionary of sequences
+        vocabulary (dict[str, int]): dictionary of residues to a unique index
+        split_seqs: callable that splits a dictionary of sequences into training and test sequences
+
+    Returns:
+        Trained model, if args.train is True
+
+    Raises:
+        ValueError: if both args.train and arg.train_split are true, or if split_seqs is not a callable
+    """
     if args.train and args.train_split:
         raise ValueError('Training on full and split data is invalid.')
 
@@ -135,6 +208,20 @@ def train_test(args, model, seqs, vocabulary, split_seqs=None):
 
 def batch_train(args, model, seqs, vocabulary, batch_size=5000,
                 verbose=True):
+    """
+    Trains mini-batches of sequences
+
+    Args:
+        args (argparse.Namespace): command line arguments
+        model (LanguageModel): the model instance
+        seqs (dict): dictionary of sequences
+        vocabulary (dict[str, int]): dictionary of residues to a unique index
+        batch_size (int): number of sequences per batch, defaults to 5000
+        verbose (bool): whether to use verbose settings, defaults to True
+
+    Raises:
+        AssertionError: if args.train is False
+    """
     assert(args.train)
 
     # Control epochs here.
@@ -144,7 +231,7 @@ def batch_train(args, model, seqs, vocabulary, batch_size=5000,
 
     n_batches = math.ceil(len(seqs) / float(batch_size))
     if verbose:
-        tprint('Traing seq batch size: {}, N batches: {}'
+        tprint('Train seq batch size: {}, N batches: {}'
                .format(batch_size, n_batches))
 
     for epoch in range(n_epochs):
@@ -153,6 +240,7 @@ def batch_train(args, model, seqs, vocabulary, batch_size=5000,
         perm_seqs = [ str(s) for s in seqs.keys() ]
         random.shuffle(perm_seqs)
 
+        # split into batches, and train model for each batch
         for batchi in range(n_batches):
             start = batchi * batch_size
             end = (batchi + 1) * batch_size
@@ -174,6 +262,18 @@ def batch_train(args, model, seqs, vocabulary, batch_size=5000,
 
 def embed_seqs(args, model, seqs, vocabulary,
                use_cache=False, verbose=True):
+    """
+    Computes semantic embeddings for each sequence.
+
+    Args:
+        args (argparse.Namespace): command line arguments
+        model (LanguageModel): the model instance
+        seqs (dict): dictionary of sequences
+        vocabulary (dict[str, int]): dictionary of residues to a unique index
+        use_cache (bool): whether to load/save .npy files
+    Returns:
+        The original seqs dict with new key 'embedding' in each metadata indicating model's embedding dimension
+    """
     X_cat, lengths = featurize_seqs(seqs, vocabulary)
 
     if use_cache:
@@ -184,7 +284,7 @@ def embed_seqs(args, model, seqs, vocabulary,
         embed_fname = None
 
     if use_cache and os.path.exists(embed_fname):
-        X_embed = np.load(embed_fname, allow_pickle=True)
+        X_embed = np.load(embed_fname, allow_pickle=True) # use embedding cache if enabled and exists
     else:
         X_embed = model.transform(X_cat, lengths, embed_fname)
         if use_cache:
@@ -193,17 +293,30 @@ def embed_seqs(args, model, seqs, vocabulary,
     sorted_seqs = sorted(seqs)
     for seq_idx, seq in enumerate(sorted_seqs):
         for meta in seqs[seq]:
-            meta['embedding'] = X_embed[seq_idx]
+            meta['embedding'] = X_embed[seq_idx] # add embedding to metadata
 
     return seqs
 
 def predict_sequence_prob(args, seq_of_interest, vocabulary, model,
                           verbose=False):
+    """
+    Predict per-position grammatical probabilities from the trained model.
+
+    Args:
+        args (argparse.Namespace): command line arguments
+        seq_of_interest (str): single sequence to predict
+        vocabulary (dict[str, int]): dictionary of residues to a unique index
+        model (LanguageModel): the model instance
+        verbose (bool): whether to use verbose settings, defaults to False
+
+    Returns:
+        y_pred (np.ndarray): each row is the distribution over the vocabulary at that position
+    """
     seqs = { seq_of_interest: [ {} ] }
     X_cat, lengths = featurize_seqs(seqs, vocabulary)
 
     y_pred = model.predict(X_cat, lengths)
-    assert(y_pred.shape[0] == len(seq_of_interest) + 2)
+    assert(y_pred.shape[0] == len(seq_of_interest) + 2) # confirm that the prediction is of the expected shape
 
     return y_pred
 
@@ -211,6 +324,21 @@ def analyze_comb_fitness(
         args, model, vocabulary, strain, wt_seq, seqs_fitness,
         comb_batch=None, prob_cutoff=0., beta=1., verbose=True,
 ):
+    """
+    Analyses combinatorial fitness for multi-mutation sequences, and generates combinatorial fitness scatter plots
+
+    Args:
+        args (argparse.Namespace): command line arguments
+        model (LanguageModel): the model instance
+        vocabulary (dict[string, int]): dictionary of residues to a unique index
+        strain (string): name of the strain
+        wt_seq (string): sequence to analyse
+        seqs_fitness (dict[(string, string), list[dict]]): the fitness of sequences - maps (mutant_seq, strain) to a list of metadata dicts
+        comb_batch (int): how many mutants to embed per batch
+        prob_cutoff (float): the minimum per-mutation probability
+        beta (float): beta parameter
+        verbose (bool): whether to use verbose settings, defaults to True
+    """
     from copy import deepcopy
     seqs_fitness = { seq: seqs_fitness[(seq, strain_i)]
                      for seq, strain_i in seqs_fitness
@@ -220,6 +348,7 @@ def analyze_comb_fitness(
         args, wt_seq, vocabulary, model, verbose=verbose
     )
 
+    # construct word position probability map from prediction vector
     word_pos_prob = {}
     for pos in range(len(wt_seq)):
         for word in vocabulary:
@@ -229,6 +358,7 @@ def analyze_comb_fitness(
                 continue
             word_pos_prob[(word, pos)] = prob
 
+    # obtain embedding
     base_embedding = embed_seqs(
         args, model, { wt_seq: [ {} ] }, vocabulary,
         use_cache=False, verbose=False
@@ -241,6 +371,7 @@ def analyze_comb_fitness(
 
     data = []
     for batchi in range(n_batches):
+        # split into batches
         start = batchi * comb_batch
         end = (batchi + 1) * comb_batch
         seqs_fitness_batch = {
@@ -249,18 +380,20 @@ def analyze_comb_fitness(
             if seqs_fitness[seq][0]['strain'] == strain
         }
 
+        # embed
         seqs_fitness_batch = embed_seqs(
             args, model, seqs_fitness_batch, vocabulary,
             use_cache=False, verbose=False
         )
 
         for mut_seq in seqs_fitness_batch:
-            assert(len(seqs_fitness_batch[mut_seq]) == 1)
+            assert(len(seqs_fitness_batch[mut_seq]) == 1) # confirm only one entry exists
             meta = seqs_fitness_batch[mut_seq][0]
             if meta['strain'] != strain:
                 continue
-            assert(len(mut_seq) == len(wt_seq))
+            assert(len(mut_seq) == len(wt_seq)) # length of mutation sequence should match length of wild type sequence
 
+            # obtain mutation and raw probabilities
             mut_pos = set(meta['mut_pos'])
             raw_probs = []
             for idx, aa in enumerate(mut_seq):
@@ -270,16 +403,18 @@ def analyze_comb_fitness(
                     assert(aa == wt_seq[idx])
             assert(len(raw_probs) == len(mut_pos))
 
+            # grammar fitness and semantic change
             grammar = sum(np.log10(raw_probs))
             sem_change = abs(base_embedding - meta['embedding']).sum()
 
+            # add to dataset
             data.append([
                 meta['strain'],
                 meta['fitness'],
                 meta['preference'],
-                grammar,
-                sem_change,
-                sem_change + (beta * grammar),
+                grammar, # grammar fitness
+                sem_change, # semantic change
+                sem_change + (beta * grammar), # cscs
             ])
 
         del seqs_fitness_batch
@@ -289,6 +424,7 @@ def analyze_comb_fitness(
         'predicted', 'sem_change', 'cscs'
     ])
 
+    # report data and plot graphs
     print('\nStrain: {}'.format(strain))
     print('\tGrammaticality correlation:')
     print('\t\tSpearman r = {:.4f}, P = {:.4g}'
@@ -324,6 +460,30 @@ def analyze_semantics(args, model, vocabulary, seq_to_mutate, escape_seqs,
                       min_pos=None, max_pos=None, prob_cutoff=0., beta=1.,
                       comb_batch=None, plot_acquisition=True,
                       plot_namespace=None, verbose=True):
+    """
+    Computes semantic change and grammatical fitness, and generates mutation maps.
+
+    Args:
+        args (argparse.Namespace): command line arguments
+        model: neural network model to be used
+        vocabulary (dict[string, int]): dictionary of the available amino acids
+        seq_to_mutate (str): sequence to mutate
+        escape_seqs (dict[str, list[dict]]): dictionary of known escape sequences to metadata
+        min_pos (int): minimum mutation position
+        max_pos (int): maximum mutation position
+        prob_cutoff (float): probability cutoff for the grammatical fitness
+        beta (float): beta parameter
+        comb_batch (int): batch size for combinatorial mutation analysis, defaults to the number of sequences
+        plot_acquisition (bool): whether to plot acquisition maps
+        plot_namespace (string): namespace prefix for output files
+        verbose (bool): whether to use verbose setting
+    Returns:
+        tuple:
+            seqs: Array of mutated sequences
+            probs: Array of predicted mutation probabilities
+            changes: Array of semantic changes relative to base
+    """
+
     if plot_acquisition:
         dirname = ('target/{}/semantics/cache'.format(args.namespace))
         mkdir_p(dirname)
@@ -339,6 +499,7 @@ def analyze_semantics(args, model, vocabulary, seq_to_mutate, escape_seqs,
     if max_pos is None:
         max_pos = len(seq_to_mutate) - 1
 
+    # construct word position map
     word_pos_prob = {}
     for i in range(min_pos, max_pos + 1):
         for word in vocabulary:
@@ -354,10 +515,11 @@ def analyze_semantics(args, model, vocabulary, seq_to_mutate, escape_seqs,
         mutable = seq_to_mutate[:pos] + word + seq_to_mutate[pos + 1:]
         seq_prob[mutable] = prob
         if prob >= prob_cutoff:
-            prob_seqs[mutable] = [ { 'word': word, 'pos': pos } ]
+            prob_seqs[mutable] = [ { 'word': word, 'pos': pos } ] # store data about sequences with sufficient probability
 
     seqs = np.array([ str(seq) for seq in sorted(seq_prob.keys()) ])
 
+    # write mutations text file
     if plot_acquisition:
         ofname = dirname + '/{}_mutations.txt'.format(args.namespace)
         with open(ofname, 'w') as of:
@@ -383,6 +545,7 @@ def analyze_semantics(args, model, vocabulary, seq_to_mutate, escape_seqs,
 
     seq_change = {}
     for batchi in range(n_batches):
+        # split to batches
         start = batchi * comb_batch
         end = (batchi + 1) * comb_batch
         prob_seqs_batch = {
@@ -393,11 +556,13 @@ def analyze_semantics(args, model, vocabulary, seq_to_mutate, escape_seqs,
             args, model, prob_seqs_batch, vocabulary,
             use_cache=False, verbose=False
         )
+        # calculate semantic changes
         for mut_seq in prob_seqs_batch:
             meta = prob_seqs_batch[mut_seq][0]
             sem_change = abs(base_embedding - meta['embedding']).sum()
             seq_change[mut_seq] = sem_change
 
+    # cache semantic changes
     cache_fname = dirname + (
         '/analyze_semantics_{}_{}_{}.txt'
         .format(plot_namespace, args.model_name, args.dim)
@@ -434,6 +599,21 @@ def analyze_reinfection(
         args, model, seqs, vocabulary, wt_seq, mutants,
         namespace='reinfection',
 ):
+    """
+    Computes and writes semantic scores for reinfection scenarios.
+
+    Args:
+        args (argparse.Namespace): command line arguments
+        model (LanguageModel): the model instance
+        seqs (dict): dictionary of sequences
+        vocabulary (dict[str, int]): dictionary of residues to a unique index
+        wt_seq(str): the wild-type sequence
+        mutants (dict[int, list[str]]): maps number of mutations to list of mutant sequences.
+        namespace (str): the namespace to use to save files
+
+    Returns:
+        None
+    """
     assert(len(mutants) == 1)
     n_mutations = list(mutants.keys())[0]
 
@@ -525,6 +705,23 @@ def null_combinatorial_fitness(
         args, model, seqs, vocabulary, wt_seq, mutants,
         n_permutations=1000000, comb_batch=100, namespace=None,
 ):
+    """
+    Generates a null distribution, and print P-Values.
+
+    Args:
+        args (argparse.Namespace): command-line arguments
+        model (LanguageModel): the model object
+        seqs (dict): dictionary of sequences
+        vocabulary (dict[str, int]): dictionary of residues to a unique index
+        wt_seq (str): wild-type sequence
+        mutants (dict[int, list[str]]): maps number of mutations to list of mutant sequences.
+        n_permutations (int): number of null-draw permutations (defaults to 1000000)
+        comb_batch (int): number of null-draw permutations per batch (defaults to 100)
+        namespace (str): namespace to use, defaults to args.namespace
+
+    Returns:
+        None
+    """
     if namespace is None:
         namespace = args.namespace
 
@@ -553,7 +750,7 @@ def null_combinatorial_fitness(
     for mutant in mutants[n_mutations]:
         positions = [ pos for pos in range(len(wt_seq))
                       if wt_seq[pos] != mutant[pos] ]
-        assert(len(positions) == n_mutations)
+        assert(len(positions) == n_mutations) # number of positions should match number of mutations
         mut_str, raw_probs = '', []
         for pos in positions:
             word = mutant[pos]

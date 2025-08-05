@@ -3,6 +3,12 @@ from utils import *
 from sklearn.metrics import auc
 
 def parse_args():
+    """
+    Parses command line arguments
+
+    Returns:
+        argparse.Namespace: the parsed arguments
+    """
     import argparse
     parser = argparse.ArgumentParser(description='Benchmark methods')
     parser.add_argument('method', type=str,
@@ -13,18 +19,32 @@ def parse_args():
     return args
 
 def load(virus):
+    """
+    Loads the sequences and file paths relevant to the specified virus.
+
+    Args:
+        virus (str): the name of the virus to load
+
+    Returns:
+        tuple:
+            seq (string): Reference sequence
+            seqs_escape (dict[str, list[dict]]): the dictionary which maps mutant sequence to escape metadata
+            train_fname (str): path to the training file
+            mut_fname (str): path to all single-mutation sequences
+            anchor_id (str): FASTA ID of the wild-type
+    """
     if virus == 'h1':
         from escape import load_doud2018
         seq, seqs_escape = load_doud2018()
-        train_fname = 'target/flu/clusters/all_h1.fasta'
-        mut_fname = 'target/flu/mutation/mutations_h1.fa'
+        train_fname = 'target/influenza/clusters/all_h1.fasta'
+        mut_fname = 'target/influenza/mutation/mutations_h1.fa'
         anchor_id = ('gb:LC333185|ncbiId:BBB04702.1|UniProtKB:-N/A-|'
                      'Organism:Influenza')
     elif virus == 'h3':
         from escape import load_lee2019
         seq, seqs_escape = load_lee2019()
-        train_fname = 'target/flu/clusters/all_h3.fasta'
-        mut_fname = 'target/flu/mutation/mutations_h3.fa'
+        train_fname = 'target/influenza/clusters/all_h3.fasta'
+        mut_fname = 'target/influenza/mutation/mutations_h3.fa'
         anchor_id = 'Reference_Perth2009_HA_coding_sequence'
     elif virus == 'bg505':
         from escape import load_dingens2019
@@ -51,15 +71,28 @@ def load(virus):
 
 def plot_result(rank_vals, escape_idx, virus, fname_prefix,
                 legend_name='Result'):
+    """
+    Plots and saves cumulative hit curves for top ranked mutations and computes AUC.
+
+    Args:
+        rank_vals(nparray): scores for mutations
+        escape_idx(list): indices for known escape mutants
+        virus (str): virus name
+        fname_prefix(str): prefix for filenames
+        legend_name(str): label for legend
+
+    Returns:
+        None
+    """
     acq_argsort = ss.rankdata(-rank_vals)
     escape_rank_dist = acq_argsort[escape_idx]
 
-    n_consider = np.array([ i + 1 for i in range(len(rank_vals)) ])
+    n_consider = np.array([ i + 1 for i in range(len(rank_vals)) ]) # ranks list
 
     n_escape = np.array([ sum(escape_rank_dist <= i + 1)
-                          for i in range(len(rank_vals)) ])
-    norm = max(n_consider) * max(n_escape)
-    norm_auc = auc(n_consider, n_escape) / norm
+                          for i in range(len(rank_vals)) ]) # cumulative escape
+    norm = max(n_consider) * max(n_escape) # normalizer
+    norm_auc = auc(n_consider, n_escape) / norm # normalized AUC
 
     escape_frac = len(escape_rank_dist) / float(len(rank_vals))
 
@@ -81,12 +114,24 @@ def plot_result(rank_vals, escape_idx, virus, fname_prefix,
     plt.close()
 
 def escape_evcouplings(virus, vocabulary):
+    """
+    Evaluates EVCoupling scores for each mutation and benchmark, and plots results.
+
+    Args:
+        virus (str): virus name
+        vocabulary(list[str]): amino acids allowed in mutations
+
+    Returns:
+        None
+    """
     seq, seqs_escape, train_fname, mut_fname, anchor_id = load(virus)
+
+    # decide energy file name
     if virus == 'h1':
-        energy_fname = ('target/flu/evcouplings/flu_h1/mutate/'
+        energy_fname = ('target/influenza/evcouplings/flu_h1/mutate/'
                         'flu_h1_single_mutant_matrix.csv')
     elif virus == 'h3':
-        energy_fname = ('target/flu/evcouplings/flu_h3/mutate/'
+        energy_fname = ('target/influenza/evcouplings/flu_h3/mutate/'
                         'flu_h3_single_mutant_matrix.csv')
     elif virus == 'bg505':
         energy_fname = ('target/hiv/evcouplings/hiv_env/mutate/'
@@ -104,10 +149,10 @@ def escape_evcouplings(virus, vocabulary):
     for idx, record in enumerate(SeqIO.parse(train_fname, 'fasta')):
         if record.id == anchor_id:
             anchor = str(record.seq).replace('-', '')
-    assert(anchor is not None)
+    assert(anchor is not None) # an anchor should be found in training file
 
-    pos_aa_score_epi = {}
-    pos_aa_score_ind = {}
+    pos_aa_score_epi = {} # maps (pos, mut) to epistemic score
+    pos_aa_score_ind = {} # maps (pos, mut) to independent score
     with open(energy_fname) as f:
         f.readline()
         for line in f:
@@ -127,7 +172,7 @@ def escape_evcouplings(virus, vocabulary):
             continue
         for word in vocabulary:
             if anchor[i] == word:
-                continue
+                continue # skip repeats
             mut_seq = anchor[:i] + word + anchor[i + 1:]
             if mut_seq in seqs_escape and \
                (sum([ m['significant'] for m in seqs_escape[mut_seq] ]) > 0):
@@ -147,25 +192,35 @@ def escape_evcouplings(virus, vocabulary):
                 legend_name='EVcouplings (independent)')
 
 def escape_freq(virus, vocabulary):
+    """
+    Benchmarks prediction of escape mutations by frequency, and plots the results
+
+    Args:
+        virus (string): the name of the virus
+        vocabulary (list[string]): amino acids allowed in mutations
+    Returns:
+        None
+    """
     seq, seqs_escape, train_fname, mut_fname, anchor_id = load(virus)
 
     anchor = None
-    pos_aa_freq = {}
+    pos_aa_freq = {} # maps (position, character) to frequency
     for idx, record in enumerate(SeqIO.parse(train_fname, 'fasta')):
         mutation = str(record.seq)
         if record.id == anchor_id:
             anchor = mutation
         else:
             for pos, c in enumerate(mutation):
+                # count presence
                 if c == '-':
-                    continue
+                    continue # skip non-mutation
                 if (pos, c) not in pos_aa_freq:
                     pos_aa_freq[(pos, c)] = 0.
                 pos_aa_freq[(pos, c)] += 1.
-    assert(anchor is not None)
+    assert(anchor is not None) # an anchor must be found somewhere in the record
 
     escape_idx, mut_freqs = [], []
-    real_pos = 0
+    real_pos = 0 # real position tracker (ignoring '-'s)
     for i in range(len(anchor)):
         if anchor[i] == '-':
             continue
@@ -177,9 +232,9 @@ def escape_freq(virus, vocabulary):
             continue
         for word in vocabulary:
             if anchor[i] == word:
-                continue
+                continue # skip mutations without effect
             mut_seq = anchor[:i] + word + anchor[i + 1:]
-            mut_seq = mut_seq.replace('-', '')
+            mut_seq = mut_seq.replace('-', '') # perform mutation and remove ambiguity
             if mut_seq in seqs_escape and \
                (sum([ m['significant'] for m in seqs_escape[mut_seq] ]) > 0):
                 escape_idx.append(len(mut_freqs))
@@ -188,18 +243,40 @@ def escape_freq(virus, vocabulary):
             else:
                 mut_freqs.append(0)
         real_pos += 1
-    mut_freqs = np.array(mut_freqs)
+    mut_freqs = np.array(mut_freqs) # convert to nparray for plotting
 
     plot_result(mut_freqs, escape_idx, virus, 'mutfreq',
                 legend_name='Mutation frequency')
 
 def tape_embed(sequence, model, tokenizer):
+    """
+    Computes mean embedding using TAPE model.
+
+    Args:
+        sequence (list[str]): the sequence to be embedded
+        model (torch.nn.Module): the model to be used
+        tokenizer (Tokenizer): TAPE tokenizer
+
+    Returns:
+        np.ndarray: the embedding vector
+    """
     import torch
     token_ids = torch.tensor([tokenizer.encode(sequence)])
     output = model(token_ids)
     return output[0].detach().numpy().mean(1).ravel()
 
 def escape_tape(virus, vocabulary, pretrained='transformer'):
+    """
+    Benchmarks escape prediction using TAPE model.
+
+    Args:
+        virus (string): the name of the virus
+        vocabulary (list[string]): amino acids allowed in mutations
+        pretrained (string): the pretrained model ('transformer' or 'unirep')
+
+    Returns:
+        None
+    """
     if pretrained == 'transformer':
         from tape import ProteinBertModel
         model_class = ProteinBertModel
@@ -219,10 +296,10 @@ def escape_tape(virus, vocabulary, pretrained='transformer'):
 
     seq, seqs_escape, train_fname, mut_fname, anchor_id = load(virus)
     if virus == 'h1':
-        embed_fname = ('target/flu/embedding/{}_h1.npz'
+        embed_fname = ('target/influenza/embedding/{}_h1.npz'
                        .format(fname_prefix))
     elif virus == 'h3':
-        embed_fname = ('target/flu/embedding/{}_h3.npz'
+        embed_fname = ('target/influenza/embedding/{}_h3.npz'
                        .format(fname_prefix))
     elif virus == 'bg505':
         embed_fname = ('target/hiv/embedding/{}_hiv.npz'
@@ -240,7 +317,7 @@ def escape_tape(virus, vocabulary, pretrained='transformer'):
     for idx, record in enumerate(SeqIO.parse(train_fname, 'fasta')):
         if record.id == anchor_id:
             anchor = str(record.seq)
-    assert(anchor is not None)
+    assert(anchor is not None) # an anchor must be found in the record
 
     base_embedding = tape_embed(anchor.replace('-', ''),
                                 model, tokenizer)
@@ -251,15 +328,15 @@ def escape_tape(virus, vocabulary, pretrained='transformer'):
     mutations = [
         str(record.seq) for record in SeqIO.parse(mut_fname, 'fasta')
     ]
-    mut2change = {}
+    mut2change = {} # maps mutation to semantic change
     for mutation in mutations:
         didx = [ c1 != c2
-                 for c1, c2 in zip(anchor, mutation) ].index(True)
-        embedding = embeddings['mut_{}_{}'.format(didx, mutation[didx])]
-        mutation_clean = mutation.replace('-', '')
+                 for c1, c2 in zip(anchor, mutation) ].index(True) # first index of difference
+        embedding = embeddings['mut_{}_{}'.format(didx, mutation[didx])] # embedding indexed by first mutation
+        mutation_clean = mutation.replace('-', '') # remove ambiguities
         mut2change[mutation_clean] = abs(base_embedding - embedding).sum()
 
-    anchor = anchor.replace('-', '')
+    anchor = anchor.replace('-', '') # remove ambiguities
     escape_idx, changes = [], []
     for i in range(len(anchor)):
         if virus == 'bg505' and (i < 29 or i > 698):
@@ -274,18 +351,29 @@ def escape_tape(virus, vocabulary, pretrained='transformer'):
                (sum([ m['significant'] for m in seqs_escape[mut_seq] ]) > 0):
                 escape_idx.append(len(changes))
             changes.append(mut2change[mut_seq])
-    changes = np.array(changes)
+    changes = np.array(changes) # map to nparray for results plot
 
     plot_result(-changes, escape_idx, virus, fname_prefix,
                 legend_name='TAPE ({})'.format(fname_prefix))
 
 
 def escape_bepler(virus, vocabulary):
+    """
+    Benchmarks escape prediction using Belper & Berger model.
+
+    Args:
+        virus (string): the name of the virus
+        vocabulary (list[string]): amino acids allowed in mutations
+        pretrained (string): the pretrained model ('transformer' or 'unirep')
+
+    Returns:
+        None
+    """
     seq, seqs_escape, train_fname, mut_fname, anchor_id = load(virus)
     if virus == 'h1':
-        embed_fname = 'target/flu/embedding/bepler_ssa_h1.txt'
+        embed_fname = 'target/influenza/embedding/bepler_ssa_h1.txt'
     elif virus == 'h3':
-        embed_fname = 'target/flu/embedding/bepler_ssa_h3.txt'
+        embed_fname = 'target/influenza/embedding/bepler_ssa_h3.txt'
     elif virus == 'bg505':
         embed_fname = 'target/hiv/embedding/bepler_ssa_hiv.txt'
     elif virus == 'sarscov2':
@@ -301,6 +389,7 @@ def escape_bepler(virus, vocabulary):
             anchor = str(record.seq)
     assert(anchor is not None)
 
+    # read embedding file
     embeddings = {}
     with open(embed_fname) as f:
         for line in f:
@@ -319,7 +408,7 @@ def escape_bepler(virus, vocabulary):
     mut2change = {}
     for mutation in mutations:
         didx = [ c1 != c2
-                 for c1, c2 in zip(anchor, mutation) ].index(True)
+                 for c1, c2 in zip(anchor, mutation) ].index(True) # position of first difference
         embedding = embeddings['mut_{}_{}'.format(didx, mutation[didx])]
         mutation_clean = mutation.replace('-', '')
         mut2change[mutation_clean] = abs(base_embedding - embedding).sum()
@@ -333,13 +422,13 @@ def escape_bepler(virus, vocabulary):
             continue
         for word in vocabulary:
             if anchor[i] == word:
-                continue
-            mut_seq = anchor[:i] + word + anchor[i + 1:]
+                continue # skip mutations without an effect
+            mut_seq = anchor[:i] + word + anchor[i + 1:] # perform mutations
             if mut_seq in seqs_escape and \
                (sum([ m['significant'] for m in seqs_escape[mut_seq] ]) > 0):
                 escape_idx.append(len(changes))
             changes.append(mut2change[mut_seq])
-    changes = np.array(changes)
+    changes = np.array(changes) # np format for data analysis
 
     plot_result(-changes, escape_idx, virus, 'bepler', legend_name='Bepler')
 
