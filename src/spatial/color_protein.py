@@ -2,6 +2,9 @@ from utils import *
 
 import matplotlib
 
+"""
+Generates PyMOL for Fig 11.
+"""
 def write_color(chain, resi, acq, of):
     """
     Generates PyMOL coloring command for 3D escape potential maps.
@@ -142,7 +145,7 @@ def color_lee2019():
 
 def color_doud2018():
     """
-    Generates escape potential maps for dod2018 data (H1 Influenza).
+    Generates escape potential maps for doud2018 data (H1 Influenza).
 
     Returns:
         None

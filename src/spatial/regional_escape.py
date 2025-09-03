@@ -31,7 +31,7 @@ def load(virus):
     elif virus == 'sarscov2':
         escape_fname = ('target/cov/semantics/cache/'
                         'analyze_semantics_cov_bilstm_512.txt')
-        region_fname = 'data/cov/sarscov2_regions.txt'
+        region_fname = 'data/cov/sarscov2_regions.txt' # this contains the regions specified in Fig 12
     else:
         raise ValueError('Virus {} not supported'.format(virus))
     return escape_fname, region_fname

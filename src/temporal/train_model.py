@@ -2,15 +2,11 @@ import torch
 import torch.nn.functional as F
 import math
 import time
-import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.svm import SVC
 from sklearn import ensemble
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.neural_network import MLPClassifier
-from sklearn import tree
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
@@ -18,7 +14,6 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import matthews_corrcoef
 from sklearn.linear_model import LogisticRegression
 import utils, validation
-from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_curve, auc
 
 
@@ -118,23 +113,8 @@ def predictions_from_output(scores):
         predictions (tensor): class predictions
     """
     prob = F.softmax(scores, dim=1)
-    _, predictions = prob.topk(1)
+    _, predictions = prob.topk(1) # top prediction
     return predictions
-
-
-def calculate_prob(scores):
-    """
-    Maps logits to prediction probabilities.
-
-    Args:
-        scores (tensor): logits
-
-    Returns:
-        pred_probe (tensor): prediction probabilities, shaped (batch_size, 1)
-    """
-    prob = F.softmax(scores, dim=1)
-    pred_probe, _ = prob.topk(1)
-    return pred_probe
 
 
 def verify_model(model, X, Y, batch_size):
@@ -203,7 +183,7 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
        X (tensor): training examples
        Y (tensor): training labels
        X_test (tensor): test examples
-       Y_test (tensor): test labels
+       Y_test (tensor): test labels - actual results to compare to
        show_attention (bool): whether attention weights are plotted (unused)
        cell_type (string): type of cell (LSTM or GRU)
 
@@ -305,6 +285,7 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
         epoch_acc = running_acc / Y.shape[0]
         all_accs.append(epoch_acc)
 
+        # calculating statistics for the relevant epoch
         if running_pre_total == 0: # avoid division by 0
             epoch_pre = 0
         else:
@@ -340,7 +321,6 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
 
             predictions = predictions_from_output(test_scores)
             predictions = predictions.view_as(Y_test)
-            pred_prob = calculate_prob(test_scores)
             precision, recall, fscore, mcc, val_acc = validation.evaluate(Y_test, predictions)
 
             val_loss = criterion(test_scores, Y_test).item()
@@ -370,7 +350,7 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
             val_loss, val_acc, precision, recall, fscore, mcc))
     plot_training_history(all_losses, all_val_losses, all_accs, all_val_accs, all_fscores, all_val_fscores)
 
-    # print best results
+    # print best results  (for Fig 10)
     print('Best results: %d \n V_loss %.3f\tV_acc %.3f\tV_pre %.3f\tV_rec %.3f\tV_fscore %.3f\tV_mcc %.3f' % (
         best_epoch_index, best_val_loss, best_val_acc, best_val_pre, best_val_rec, best_val_fscore, best_val_mcc))
     # roc curve
@@ -402,6 +382,8 @@ def train_rnn(model, verify, epochs, learning_rate, batch_size, X, Y, X_test, Y_
 def svm_baseline(X, Y, X_test, Y_test, method=None):
     """
     Trains and evaluates the results for the Support Vector Machine (SVM) classifier.
+
+    Used for comparative analysis in Fig 10 ('SVM' Row)
 
     Args:
         X (tensor): The feature vector for the training data set.
@@ -458,6 +440,8 @@ def svm_baseline(X, Y, X_test, Y_test, method=None):
 def random_forest_baseline(X, Y, X_test, Y_test, method=None):
     """
     Trains, evaluates and reports the results for the Random Forest (RF) classifier.
+
+    Used for comparative analysis in Fig 10 ('RF' row)
 
     Args:
         X (tensor): The feature vector for the training data set.
@@ -566,75 +550,11 @@ def knn_baseline(X, Y, X_test, Y_test, method=None):
     plt.show()
 
 
-def bayes_baseline(X, Y, X_test, Y_test, method=None):
-    """
-    Trains, evaluates and reports the results for the Bayesian Neural Network Classifier.
-
-    Args:
-        X (tensor): The feature vector for the training data set.
-        Y (tensor): The target vector for the training data set, used for evaluation.
-        X_test (tensor): The feature vector for the test data set, used for evaluation.
-        Y_test (tensor): The target vector for the test data set, used for evaluation.
-        method (string): Unused
-
-    Returns:
-        None
-    """
-    clf = GaussianNB().fit(X, Y)
-    train_acc = accuracy_score(Y, clf.predict(X))
-    train_pre = precision_score(Y, clf.predict(X))
-    train_rec = recall_score(Y, clf.predict(X))
-    train_fscore = f1_score(Y, clf.predict(X))
-    train_mcc = matthews_corrcoef(Y, clf.predict(X))
-
-    Y_pred = clf.predict(X_test)
-    precision, recall, fscore, mcc, val_acc = validation.evaluate(Y_test, Y_pred)
-    print('bayes baseline:')
-    print('T_acc %.3f\tT_pre %.3f\tT_rec %.3f\tT_fscore %.3f\tT_mcc %.3f'
-          % (train_acc, train_pre, train_rec, train_fscore, train_mcc))
-    print('V_acc  %.3f\tV_pre %.3f\tV_rec %.3f\tV_fscore %.3f\tV_mcc %.3f'
-          % (val_acc, precision, recall, fscore, mcc))
-
-    # roc curve
-    y_pred_roc = clf.predict_proba(X_test)[:, 1]
-    fpr_rt_nb, tpr_rt_nb, _ = roc_curve(Y_test, y_pred_roc)
-    print(auc(fpr_rt_nb, tpr_rt_nb))
-    plt.figure(1)
-    plt.plot([0, 1], [0, 1], 'k--')
-    plt.plot(fpr_rt_nb, tpr_rt_nb, label='LR')
-    plt.legend(loc='best')
-    plt.show()
-
-
-# def xgboost_baseline(X, Y, X_test, Y_test, method=None):
-#     clf = XGBClassifier().fit(X, Y)
-#     train_acc = accuracy_score(Y, clf.predict(X))
-#     train_pre = precision_score(Y, clf.predict(X))
-#     train_rec = recall_score(Y, clf.predict(X))
-#     train_fscore = f1_score(Y, clf.predict(X))
-#     train_mcc = matthews_corrcoef(Y, clf.predict(X))
-#
-#     Y_pred = clf.predict(X_test)
-#     precision, recall, fscore, mcc, val_acc = validation.evaluate(Y_test, Y_pred)
-#     print('Logistic regression baseline:')
-#     print('T_acc %.3f\tT_pre %.3f\tT_rec %.3f\tT_fscore %.3f\tT_mcc %.3f'
-#                 % (train_acc, train_pre, train_rec, train_fscore, train_mcc))
-#     print('V_acc  %.3f\tV_pre %.3f\tV_rec %.3f\tV_fscore %.3f\tV_mcc %.3f'
-#                 % (val_acc, precision, recall, fscore, mcc))
-#     #roc curve
-#     y_pred_roc = clf.predict_proba(X_test)[:, 1]
-#     fpr_rt_xgb, tpr_rt_xgb, _ = roc_curve(Y_test, y_pred_roc)
-#     print(auc(fpr_rt_xgb, tpr_rt_xgb))
-#     plt.figure(1)
-#     plt.plot([0, 1], [0, 1], 'k--')
-#     plt.plot(fpr_rt_xgb, tpr_rt_xgb, label='LR')
-#     plt.legend(loc='best')
-#     #plt.show()
-
-
 def logistic_regression_baseline(X, Y, X_test, Y_test, method=None):
     """
         Trains and evaluates the results for the Logistic Regression (LR) classifier.
+
+        Used for comparative analysis in Fig 10 ('LR' row)
 
         Args:
             X (tensor): The feature vector for the training data set.

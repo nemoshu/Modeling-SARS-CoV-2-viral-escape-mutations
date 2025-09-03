@@ -15,7 +15,7 @@ def load_phylo(namespace=None):
             value (float): purity of the cluster
 
     Input File:
-        target/log/cluster_purity{namespace}.log
+        target/log/cluster_purity_{namespace}.log
     """
     if namespace is None:
         name = 'phylo'

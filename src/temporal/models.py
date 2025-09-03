@@ -8,6 +8,8 @@ class RnnModel(nn.Module):
         """
         Recurrent neural network.
 
+        Used for comparative analysis in Fig 10 ('LSTM' and 'RNN' rows)
+
         Args:
             input_dim (int): input dimension
             output_dim (int): output dimension
@@ -59,7 +61,7 @@ class RnnModel(nn.Module):
         Parameters:
             batch_size: Number of sequences in the batch
         Returns:
-            For 'LSTM' cells, two all-zero (h_init, c_init) 3D Pytorch tensors with dimensions (1, batch_size, hidden_size)
+            For 'LSTM' cells, two all-zero (h_init, c_init) 3D Pytorch tensors with dimensions (1, batch_size, hidden_size), to represent
             For other types, one all-zero 3D Pytorch tensors with dimensions (1, batch_size, hidden_size)
         """
 
@@ -92,7 +94,7 @@ class AttentionModel(nn.Module):
         self.seq_length = seq_length
         self.output_dim = output_dim
 
-        self.encoder = nn.LSTM(input_dim, hidden_size)
+        self.encoder = nn.LSTM(input_dim, hidden_size) # LSTM encoder, the library implements equations (6)-(11) of the paper.
         self.attn = nn.Linear(hidden_size, seq_length)
         self.dropout = nn.Dropout(dropout_p)
         self.out = nn.Linear(hidden_size, output_dim)
@@ -160,6 +162,8 @@ class DaRnnModel(nn.Module):
         A Dual-Attention (input attention and temporal attention) RNN model with attention over both the input at each timestep
         and all hidden states of the encoder to make the final prediction.
 
+        This represents the paper's "own" model, as specified on the right-hand-side of Fig 3.
+
         Args:
             seq_length (int): length of input sequence
             input_dim (int): input dimension
@@ -176,7 +180,7 @@ class DaRnnModel(nn.Module):
 
         self.dropout = nn.Dropout(dropout_p) # drop out layer
 
-        self.encoder = nn.LSTM(self.n, self.m) # encoder
+        self.encoder = nn.LSTM(self.n, self.m) # LSTM encoder, as specified in Fig 3, implementing equations (6)-(11)
 
         # input attention weight layers
         self.We = nn.Linear(2 * self.m, self.T)
@@ -244,7 +248,9 @@ class DaRnnModel(nn.Module):
 
     def temporal_attention(self, h):
         """
+        Represents the "Temporal Attention" layer in Fig 3.
         Computes attention over hidden states.
+        Implements Equations (12)-(14), as explained below.
 
         Args:
             h (torch.Tensor): hidden states for all time steps, shape (seq_length, batch_size, hidden_size)
@@ -253,11 +259,11 @@ class DaRnnModel(nn.Module):
             beta (torch.Tensor): temporal attention weights, shape (batch_size, seq_length)
         """
         h = h.permute(1, 0, 2)
-        l = self.vd(torch.tanh((self.Ud(h))))
+        l = self.vd(torch.tanh((self.Ud(h)))) # Equation (12) - applies linear transformation to hidden states and produce attentionj scores
         l = torch.squeeze(l)
-        beta = F.softmax(l, dim=1)
+        beta = F.softmax(l, dim=1) # Equation (13) - softmax
         beta = torch.unsqueeze(beta, 1)
-        c = torch.bmm(beta, h)
+        c = torch.bmm(beta, h) # Equation (14): Weighted sum of hidden states, through matrix multiplication
         c = torch.squeeze(c)
 
         return c, beta
@@ -283,7 +289,7 @@ class TransformerModel(nn.Module):
 
     def __init__(self, input_dim, output_dim, dropout_p):
         """
-        Transformer method with attention mechanism.
+        Transformer model with attention mechanism.
 
         Args:
             input_dim (int): input dimension

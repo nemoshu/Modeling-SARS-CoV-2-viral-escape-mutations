@@ -8,8 +8,13 @@ import utils
 import torch
 import numpy as np
 
-''' DATA PREPARATION INSTRUCTIONS:
+'''
+Runs temporal attention model, as seen on the right-hand-side of Fig 3.
+
+DATA PREPARATION INSTRUCTIONS:
 Select the appropriate data file paths in your project directory
+
+Model training code is contained in train_model.py.
 '''
 def main():
     """
@@ -93,6 +98,7 @@ def main():
     print(' Testing  %.3f' % test_imbalance)
 
     # Run the training process for the selected model
+    # Prints out evaluation results, for the purpose of Fig 10
     if parameters['model'] == 'svm':
         window_size = 1
         train_model.svm_baseline(
@@ -162,11 +168,4 @@ if __name__ == '__main__':
         print('\n')
         print("Experimental results with model %s on subtype_flag %s:" % (model, subtype_flag))
         main()
-
-
-
-
-
-
-
 

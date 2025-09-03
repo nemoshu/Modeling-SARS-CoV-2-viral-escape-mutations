@@ -174,7 +174,7 @@ def report_performance(model_name, model, vocabulary,
 
 def train_test(args, model, seqs, vocabulary, split_seqs=None):
     """
-    Handles one round of training.
+    Handles one round of training on split data.
 
     Args:
         args (argparse.Namespace): command line arguments
@@ -461,7 +461,7 @@ def analyze_semantics(args, model, vocabulary, seq_to_mutate, escape_seqs,
                       comb_batch=None, plot_acquisition=True,
                       plot_namespace=None, verbose=True):
     """
-    Computes semantic change and grammatical fitness, and generates mutation maps.
+    Computes semantic change and grammatical fitness in accordance to Equation (3), and generates mutation maps used in Figures 4-6.
 
     Args:
         args (argparse.Namespace): command line arguments
@@ -499,14 +499,14 @@ def analyze_semantics(args, model, vocabulary, seq_to_mutate, escape_seqs,
     if max_pos is None:
         max_pos = len(seq_to_mutate) - 1
 
-    # construct word position map
+    # construct word position map, to fulfill Equation (4)
     word_pos_prob = {}
     for i in range(min_pos, max_pos + 1):
         for word in vocabulary:
             if seq_to_mutate[i] == word:
-                continue
-            word_idx = vocabulary[word]
-            prob = y_pred[i + 1, word_idx]
+                continue # skip the original
+            word_idx = vocabulary[word] # obtain index
+            prob = y_pred[i + 1, word_idx] # obtain conditional probability, as y_pred already relates to the context
             word_pos_prob[(word, i)] = prob
 
     prob_seqs = { seq_to_mutate: [ { 'word': None, 'pos': None } ] }
@@ -559,7 +559,7 @@ def analyze_semantics(args, model, vocabulary, seq_to_mutate, escape_seqs,
         # calculate semantic changes
         for mut_seq in prob_seqs_batch:
             meta = prob_seqs_batch[mut_seq][0]
-            sem_change = abs(base_embedding - meta['embedding']).sum()
+            sem_change = abs(base_embedding - meta['embedding']).sum() # apply equation 3 (distance in the embedding space given by its vector norm)
             seq_change[mut_seq] = sem_change
 
     # cache semantic changes
@@ -600,7 +600,7 @@ def analyze_reinfection(
         namespace='reinfection',
 ):
     """
-    Computes and writes semantic scores for reinfection scenarios.
+    Computes and caches semantic scores for reinfection scenarios.
 
     Args:
         args (argparse.Namespace): command line arguments
@@ -735,7 +735,7 @@ def null_combinatorial_fitness(
 
     y_pred = predict_sequence_prob(
         args, wt_seq, vocabulary, model, verbose=False
-    )
+    ) # model prediction for the entire sequence
 
     word_pos_prob = {}
     for i in range(len(wt_seq)):

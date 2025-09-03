@@ -35,7 +35,9 @@ def compute_p(true_val, n_interest, n_total, n_permutations=10000):
 
 def cached_escape(cache_fname, beta, plot=True, namespace='semantics'):
     """
-    Generates escape prediction maps and discovery curves, and evaluates escape mutation detection performance.
+    Generates escape prediction maps (Figs 4-6) and discovery curves, and evaluates escape mutation detection performance.
+
+    Input file is the output TSV of mutation.analyze_semantics()
 
     Args:
         cache_fname (str): Path to a cached file containing model outputs.
@@ -63,6 +65,7 @@ def cached_escape(cache_fname, beta, plot=True, namespace='semantics'):
     viable_idx = np.array(viable_idx)
 
     # calculating acquisition scores
+    # acquisition = rank(change) + beta * rank(prob)
     acquisition = ss.rankdata(change) + (beta * ss.rankdata(prob))
 
     # boolean array for whether there is non-zero semantic shift

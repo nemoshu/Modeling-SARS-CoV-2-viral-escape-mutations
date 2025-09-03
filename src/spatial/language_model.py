@@ -72,6 +72,7 @@ class LanguageModel(object):
             mode='auto', save_freq='epoch',
         )
 
+        # calls fit in the Keras instance
         self.model_.fit(
             X, y, epochs=self.n_epochs_, batch_size=self.batch_size_,
             shuffle=True, verbose=self.verbose_,
@@ -97,6 +98,7 @@ class LanguageModel(object):
 
     def transform(self, X_cat, lengths, embed_fname=None):
         """
+        UNUSED
         Generates semantic embeddings for each sequence.
         Embeddings are extracted from 'embed_layer'.
 
@@ -451,7 +453,7 @@ class BiLSTMLanguageModel(LanguageModel):
             seq_len (int): maximum sequence length including start/end.
             vocab_size (int): vocabulary size, i.e., number of unique tokens
             embedding_dim (int): embedding dimension, defaults to 20
-            hidden_dim (int): hidden layer dimension, defaults to 256
+            hidden_dim (int): hidden layer dimension, defaults to 256 (Paper: 512)
             n_hidden (int): number of hidden layers, defaults to 2
             dff (int): size of dense feed-forward projection
             n_epochs (int): number of epochs, defaults to 1
@@ -491,7 +493,7 @@ class BiLSTMLanguageModel(LanguageModel):
 
         #x = Dense(dff, activation='relu')(x)
         x = Dense(vocab_size + 1)(x)
-        output = Activation('softmax', dtype='float32')(x)
+        output = Activation('softmax', dtype='float32')(x) # Softmax function in the final layer, as specified by equation (5)
 
         self.model_ = Model(inputs=[ input_pre, input_post ],
                             outputs=output)

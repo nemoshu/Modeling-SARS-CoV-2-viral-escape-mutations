@@ -116,7 +116,7 @@ def get_mcc(conf_matrix):
     if TP + FP > 0 and TP + FN > 0 and TN + FP > 0 and TN + FN > 0:
         return (TP * TN - FP * FN) / math.sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
     else:
-        return  0# avoid division by 0
+        return  0 # avoid division by 0
 
 
 def evaluate(Y_real, Y_pred):
@@ -142,19 +142,3 @@ def evaluate(Y_real, Y_pred):
     val_acc = get_accuracy(conf_matrix)
 
     return precision, recall, fscore, mcc, val_acc
-
-
-def list_summary(name, data):
-    """
-    Prints the specified name followed by the count of each unique element in the data.
-
-    Args:
-        name (str): Display name.
-        data (ndarray): Data to display a summary of.
-
-    Returns:
-        None
-    """
-    print(name)
-    unique, count = np.unique(data, return_counts=True)
-    print(dict(zip(unique, count)))
